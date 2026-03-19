@@ -1,67 +1,71 @@
-# Phase 11: Role Attributes Support
+# Phase 11: Role Attribute Pattern
 
-## Overview
+| Field | Value |
+|-------|-------|
+| **Phase** | 11 |
+| **Status** | ✅ Complete |
+| **Goal** | Generate template roles with `${roleAttribute/...}` placeholders and teams with `roleAttributes` — the core architectural pattern of the entire rbac-builder |
+| **Depends on** | Phase 3 (Payload Builder), Phase 5 (UI Modules) |
 
-Add support for generating role attribute-based roles and teams, matching the enterprise pattern used in ps-terraform-private.
+---
 
-## Status: ✅ Complete
+## Why This Phase Matters
 
-## Goals
+This is the **most important architectural decision in the entire project**.
 
-1. Generate template roles with `${roleAttribute/...}` placeholders
-2. Generate teams with `roleAttributes` that fill in the placeholders
-3. Support multi-project deployments from a single configuration
-4. Maintain backward compatibility with current hardcoded approach
+Instead of creating separate roles for every team × environment combination, the role attribute pattern creates:
+1. **ONE shared role template per permission** — with `${roleAttribute/...}` placeholders
+2. **Teams that fill in the placeholders** — with `roleAttributes` blocks containing exact env/project values
+
+This is the pattern used in `ps-terraform-private-customer-sa-demo` (the SA delivery standard) and validated against real customer accounts.
+
+---
 
 ## Documents
 
+### Canonical Reference (complete pattern, sa-demo aligned)
+
 | Document | Description |
 |----------|-------------|
-| [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, implementation plan |
+| [ROLE_ATTRIBUTE_HLD.md](./ROLE_ATTRIBUTE_HLD.md) | Why the pattern, architecture diagram, data flow, design decisions |
+| [ROLE_ATTRIBUTE_DLD.md](./ROLE_ATTRIBUTE_DLD.md) | Role structure, team structure, resource string construction, full example |
+| [ROLE_ATTRIBUTE_PSEUDOLOGIC_AND_TESTS.md](./ROLE_ATTRIBUTE_PSEUDOLOGIC_AND_TESTS.md) | Pseudo logic + 15 test cases (role gen, team assignment, policy evaluation) |
+
+### Implementation Reference
+
+| Document | Description |
+|----------|-------------|
+| [DESIGN.md](./DESIGN.md) | Original implementation design (Phase 11 initial) |
+| [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | Python concepts: f-string escaping, dict lookup, Builder pattern |
 | [PROJECT_PREFIXED_TEAMS.md](./PROJECT_PREFIXED_TEAMS.md) | Project isolation via prefixed team keys |
-| [TERRAFORM_PATTERNS.md](./TERRAFORM_PATTERNS.md) | All patterns from ps-terraform-private (TODO list) |
-| [ROLE_ATTRIBUTES_EXPLAINED.md](../ROLE_ATTRIBUTES_EXPLAINED.md) | Concept explanation |
+| [TERRAFORM_PATTERNS.md](./TERRAFORM_PATTERNS.md) | All patterns from ps-terraform-private |
+
+> **Corrections made in Phase 12:** Kebab-case attribute keys, context kind statements, `base_permissions` field. See [Phase 12](../phase12/) for detail.
+
+---
+
+## Pattern in One Sentence
+
+> One shared role template per permission + teams that fill in `${roleAttribute/projects}` and `${roleAttribute/<perm>-environments}` with exact values.
+
+## Key Files
+
+| File | Role |
+|------|------|
+| `core/ld_actions.py` | `PERMISSION_ATTRIBUTE_MAP`, `build_env_role_attribute_resource()` |
+| `services/payload_builder.py` | `RoleAttributePayloadBuilder` class |
+| `tests/test_role_attributes.py` | 33 tests covering the pattern |
+| `tests/test_critical_environments.py` | 20 tests covering env scoping (post-Phase 12) |
+
+---
 
 ## Checklist
 
-- [x] Design document complete
-- [x] Test cases defined (33 tests in test_role_attributes.py)
-- [x] Implementation complete
-- [x] All tests passing (293 total tests)
-- [x] Documentation updated
-
-## Implementation Summary
-
-### Files Modified
-
-| File | Changes |
-|------|---------|
-| `core/ld_actions.py` | Added role attribute resource builders, permission-to-attribute mapping |
-| `services/payload_builder.py` | Added `RoleAttributePayloadBuilder` class |
-| `services/__init__.py` | Exported new builder and convenience function |
-| `ui/setup_tab.py` | Added generation mode toggle and default projects input |
-| `ui/deploy_tab.py` | Updated to handle both modes, mode-aware summary |
-| `tests/test_role_attributes.py` | Comprehensive test suite (33 tests) |
-
-### New Functions Added
-
-```python
-# core/ld_actions.py
-build_role_attribute_resource(project_attr, resource_type) -> str
-build_env_role_attribute_resource(project_attr, env_attr, resource_type) -> str
-build_project_only_role_attribute_resource(project_attr) -> str
-get_attribute_name(permission_name) -> str
-is_project_level_permission(permission_name) -> bool
-is_env_level_permission(permission_name) -> bool
-get_resource_type_for_permission(permission_name) -> str
-
-# services/payload_builder.py
-class RoleAttributePayloadBuilder
-build_role_attribute_payload_from_session(...)
-slugify(text) -> str
-```
-
-## Dependencies
-
-- Phase 3: Payload Builder (services/payload_builder.py)
-- Phase 5: UI Modules (ui/matrix_tab.py, ui/deploy_tab.py)
+- [x] ROLE_ATTRIBUTE_HLD.md complete
+- [x] ROLE_ATTRIBUTE_DLD.md complete
+- [x] ROLE_ATTRIBUTE_PSEUDOLOGIC_AND_TESTS.md complete
+- [x] DESIGN.md complete
+- [x] PYTHON_CONCEPTS.md complete
+- [x] Implementation complete (`RoleAttributePayloadBuilder`)
+- [x] 33 tests passing (`test_role_attributes.py`)
+- [x] Pattern validated against sa-demo (`ps-terraform-private-customer-sa-demo`)

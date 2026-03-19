@@ -226,14 +226,21 @@ A **Resource** is something you can control access to in LaunchDarkly.
 
 ### Resource Types
 
-| Type | Key | Example |
-|------|-----|---------|
-| Project | `proj` | `proj/mobile-app` |
-| Environment | `env` | `proj/mobile-app:env/production` |
-| Feature Flag | `flag` | `proj/mobile-app:env/prod:flag/new-checkout` |
-| Segment | `segment` | `proj/mobile-app:env/prod:segment/beta-users` |
-| Metric | `metric` | `proj/mobile-app:metric/conversion-rate` |
-| AI Config | `aiconfig` | `proj/mobile-app:env/prod:aiconfig/my-llm-config` |
+| Type | Key | Example | Scoped to env? |
+|------|-----|---------|:--------------:|
+| Project | `proj` | `proj/mobile-app` | — |
+| Environment | `env` | `proj/mobile-app:env/production` | ✅ |
+| Feature Flag | `flag` | `proj/mobile-app:env/prod:flag/new-checkout` | ✅ |
+| Segment | `segment` | `proj/mobile-app:env/prod:segment/beta-users` | ✅ |
+| Metric | `metric` | `proj/mobile-app:metric/conversion-rate` | ❌ |
+| AI Config | `aiconfig` | `proj/mobile-app:env/prod:aiconfig/my-llm-config` | ✅ |
+| Session | `session` | `proj/mobile-app:session/*` | ❌ |
+| Error | `error` | `proj/mobile-app:error/*` | ❌ |
+| Log | `log` | `proj/mobile-app:log/*` | ❌ |
+| Trace | `trace` | `proj/mobile-app:trace/*` | ❌ |
+| Alert | `alert` | `proj/mobile-app:alert/*` | ❌ |
+| Observability Dashboard | `observability-dashboard` | `proj/mobile-app:observability-dashboard/*` | ❌ |
+| Vega AI | `vega` | `proj/mobile-app:vega/*` | ❌ |
 
 ### Resource Syntax (Hierarchical)
 
@@ -365,6 +372,144 @@ These roles have AI Config permissions by default:
         """)
 
 
+def _render_observability() -> None:
+    """Render Observability permissions section."""
+    with st.expander("🔭 Observability Permissions", expanded=False):
+        st.markdown("""
+### What is LaunchDarkly Observability?
+
+**LaunchDarkly Observability** is a suite of features for monitoring and debugging applications —
+Sessions, Errors, Logs, Traces, Alerts, Dashboards, and the Vega AI assistant.
+
+---
+
+### Key Difference from Flag Permissions
+
+> ⚠️ **All observability resources are project-scoped — there is no environment segment.**
+
+| Type | Flag (for comparison) | Observability |
+|------|-----------------------|---------------|
+| Resource path | `proj/*:env/*:flag/*` | `proj/*:session/*` |
+| Has `:env/*`? | ✅ Yes | ❌ No |
+| Scoped to env? | Yes | No — project-wide |
+
+**Why?** Observability data (traces, logs, sessions) is collected across all environments.
+When debugging, you typically need visibility across production AND staging simultaneously.
+
+This was verified against `gonfalon/internal/roles/resource_identifier.go` —
+every observability type embeds `ProjectResourceIdentifier`, not `EnvironmentResourceIdentifier`.
+
+---
+
+### Resource Syntax
+
+```
+proj/${roleAttribute/projects}:session/*
+proj/${roleAttribute/projects}:error/*
+proj/${roleAttribute/projects}:log/*
+proj/${roleAttribute/projects}:trace/*
+proj/${roleAttribute/projects}:alert/*
+proj/${roleAttribute/projects}:observability-dashboard/*
+proj/${roleAttribute/projects}:vega/*
+```
+
+---
+
+### Observability Actions by Resource Type
+
+**Sessions** — `proj/*:session/*`
+
+| Action | Description |
+|--------|-------------|
+| `viewSession` | View session replay data |
+
+---
+
+**Errors** — `proj/*:error/*`
+
+| Action | Description |
+|--------|-------------|
+| `viewError` | View error tracking data |
+| `updateErrorStatus` | Update error status (resolve, ignore, etc.) |
+
+---
+
+**Logs** — `proj/*:log/*`
+
+| Action | Description |
+|--------|-------------|
+| `viewLog` | View log data |
+
+---
+
+**Traces** — `proj/*:trace/*`
+
+| Action | Description |
+|--------|-------------|
+| `viewTrace` | View distributed trace data |
+
+> ⚠️ **Traces are project-scoped** (`proj/*:trace/*`), **not** `proj/*:env/*:trace/*`.
+
+---
+
+**Alerts** — `proj/*:alert/*`
+
+| Action | Description |
+|--------|-------------|
+| `viewAlert` | View alerts |
+| `createAlert` | Create a new alert |
+| `deleteAlert` | Delete an alert |
+| `updateAlertOn` | Enable or disable an alert |
+| `updateAlertConfiguration` | Update alert settings |
+
+---
+
+**Observability Dashboards** — `proj/*:observability-dashboard/*`
+
+| Action | Description |
+|--------|-------------|
+| `viewObservabilityDashboard` | View dashboards |
+| `createObservabilityDashboard` | Create a dashboard |
+| `deleteObservabilityDashboard` | Delete a dashboard |
+| `addObservabilityGraphToDashboard` | Add a graph to a dashboard |
+| `removeObservabilityGraphFromDashboard` | Remove a graph from a dashboard |
+| `updateObservabilityDashboardConfiguration` | Update dashboard settings |
+| `updateObservabilityGraphConfiguration` | Update graph settings |
+| `updateObservabilitySettings` | Update account-level observability settings |
+
+---
+
+**Vega AI Assistant** — `proj/*:vega/*`
+
+| Action | Description |
+|--------|-------------|
+| `talkToVega` | Use the LaunchDarkly Vega AI assistant |
+
+> ⚠️ **Vega is project-scoped** (`proj/*:vega/*`), **not** `proj/*:env/*:vega/*`.
+
+---
+
+### RBAC Builder Grouping
+
+In the RBAC Builder matrix, observability permissions are in the **🔭 Observability** tab:
+
+| Default (shown by default) | Optional |
+|---------------------------|---------|
+| View Sessions | Manage Alerts |
+| View Errors | Manage Observability Dashboards |
+| View Logs | Talk to Vega |
+| View Traces | |
+
+---
+
+### Official Documentation
+
+- [LaunchDarkly Observability](https://launchdarkly.com/docs/home/observability/)
+- [Sessions](https://launchdarkly.com/docs/home/observability/sessions)
+- [Errors](https://launchdarkly.com/docs/home/observability/errors)
+        """)
+
+
 def _render_permission_scopes() -> None:
     """Render permission scopes section."""
     with st.expander("🔐 Permission Scopes (Project vs Environment)", expanded=False):
@@ -422,6 +567,40 @@ PROJECT: mobile-app
         """)
 
 
+def _render_upcoming_features() -> None:
+    """Render upcoming features roadmap section."""
+    with st.expander("🗺️ Upcoming Features & Roadmap", expanded=False):
+        st.markdown("""
+### What's Coming Next
+
+| Phase | Feature | Priority | What it adds |
+|-------|---------|----------|-------------|
+| **16** | Terraform Export | 🔴 High | Generate `.tf` files for ps-terraform-private delivery |
+| **17** | Global / Account-Level Roles | 🔴 High | `view_teams`, `manage_personal_access_tokens` in every team |
+| **18** | LD Views Support | 🔴 High | RBAC for LaunchDarkly saved flag filter Views |
+| **19** | Manage Context Kinds | 🔴 High | Standalone Context Kinds column in matrix |
+| **20** | Deny Lists | 🟡 Medium | Explicit exclusions for environments/flags/projects |
+| **21** | Visible Teams | 🟡 Medium | `visibleTeams` role attribute in all teams |
+| **22** | Project Admin Roles | 🟡 Medium | Destructive admin actions (delete project, rotate SDK keys) |
+| **23** | Environment Tag Specifiers | 🟢 Lower | `env/*;tag1,tag2` filtering |
+| **24** | Flag / Segment Specifiers | 🟢 Lower | `flags=["feature-*"]` scoping |
+| **25** | Team Management Global Roles | 🟢 Lower | `manage_members`, `manage_integrations` |
+
+---
+
+### Current Coverage (Phases 1–15)
+
+- ✅ Full permission matrix (Flags, Metrics, AI Configs, Observability)
+- ✅ Role attribute pattern (sa-demo compatible)
+- ✅ Client delivery ZIP with `deploy.py` script
+- ✅ Markdown deployment guide
+- ✅ Direct LD API deployment (Connected mode)
+- ✅ Tab-based grouped UI
+
+📄 **Full roadmap:** See `docs/ROADMAP.md` in this project.
+        """)
+
+
 def _render_documentation_links() -> None:
     """Render official documentation links section."""
     with st.expander("🔗 Official LaunchDarkly Documentation", expanded=False):
@@ -464,5 +643,7 @@ def render_reference_tab() -> None:
     _render_resources()
     _render_actions()
     _render_ai_configs()
+    _render_observability()
     _render_permission_scopes()
+    _render_upcoming_features()
     _render_documentation_links()

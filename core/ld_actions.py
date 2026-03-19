@@ -221,25 +221,102 @@ class EnvironmentAction(Enum):
 
 
 # =============================================================================
+# LESSON 50: Observability Actions (Phase 14)
+# =============================================================================
+# LaunchDarkly Observability resources are ALL project-scoped.
+# This means the resource path has NO :env/* segment:
+#   proj/${roleAttribute/projects}:session/*   ← no env
+#   proj/${roleAttribute/projects}:trace/*     ← no env (confirmed in Gonfalon!)
+#
+# This was verified against gonfalon/internal/roles/resource_identifier.go:
+#   TraceResourceIdentifier embeds ProjectResourceIdentifier (NOT EnvironmentResourceIdentifier)
+#   VegaResourceIdentifier  embeds ProjectResourceIdentifier (NOT EnvironmentResourceIdentifier)
+#
+# The LD Slack response to College Board (2026-03-18) incorrectly stated that
+# trace and vega were env-scoped. Gonfalon source proves they are project-scoped.
+
+class ObservabilityAction(Enum):
+    """
+    Maps UI observability permission names to LaunchDarkly action codes.
+
+    All observability resources are project-scoped — no env/* segment.
+    Resource format: proj/{project-key}:{resource-type}/*
+    """
+
+    # Sessions — view user session replays
+    VIEW_SESSIONS = ["viewSession"]
+
+    # Errors — view and manage error tracking
+    VIEW_ERRORS = ["viewError", "updateErrorStatus"]
+
+    # Logs — view log data
+    VIEW_LOGS = ["viewLog"]
+
+    # Traces — distributed tracing (project-scoped, NOT env-scoped)
+    VIEW_TRACES = ["viewTrace"]
+
+    # Alerts — full alert management
+    MANAGE_ALERTS = [
+        "viewAlert",
+        "createAlert",
+        "deleteAlert",
+        "updateAlertOn",
+        "updateAlertConfiguration",
+    ]
+
+    # Observability Dashboards — full dashboard management
+    MANAGE_OBS_DASHBOARDS = [
+        "viewObservabilityDashboard",
+        "createObservabilityDashboard",
+        "deleteObservabilityDashboard",
+        "addObservabilityGraphToDashboard",
+        "removeObservabilityGraphFromDashboard",
+        "updateObservabilityDashboardConfiguration",
+        "updateObservabilityGraphConfiguration",
+        "updateObservabilitySettings",
+    ]
+
+    # Vega — LD AI assistant (project-scoped, NOT env-scoped)
+    TALK_TO_VEGA = ["talkToVega"]
+
+
+# =============================================================================
 # LESSON 22: UI Column to Action Mapping
 # =============================================================================
 # These dictionaries map the DataFrame column names to our Enum values
 # This is the "glue" between the UI and the action codes
 
-# Project-level: Maps DataFrame column name -> ProjectAction enum
+# Project-level: Maps DataFrame column name -> ProjectAction or ObservabilityAction enum
 # These match the columns in the Project Permissions matrix UI
-PROJECT_PERMISSION_MAP: Dict[str, ProjectAction] = {
-    "Create Flags": ProjectAction.CREATE_FLAGS,
-    "Update Flags": ProjectAction.UPDATE_FLAGS,
-    "Archive Flags": ProjectAction.ARCHIVE_FLAGS,
+#
+# LESSON: Union type hint — the dict holds EITHER ProjectAction OR ObservabilityAction.
+# Both enums follow the same pattern (.value = list of action strings), so callers
+# can use enum_value.value without caring which enum type it is (duck typing).
+PROJECT_PERMISSION_MAP: Dict[str, "ProjectAction | ObservabilityAction"] = {
+    # Standard flag/project permissions
+    "Create Flags":                    ProjectAction.CREATE_FLAGS,
+    "Update Flags":                    ProjectAction.UPDATE_FLAGS,
+    "Archive Flags":                   ProjectAction.ARCHIVE_FLAGS,
     "Update Client Side Availability": ProjectAction.CLIENT_SIDE,
-    "Manage Metrics": ProjectAction.MANAGE_METRICS,
-    "Manage Release Pipelines": ProjectAction.MANAGE_PIPELINES,
-    "Create AI Configs": ProjectAction.CREATE_AI_CONFIGS,
-    "Update AI Configs": ProjectAction.UPDATE_AI_CONFIGS,
-    "Delete AI Configs": ProjectAction.DELETE_AI_CONFIGS,
-    "Manage AI Variations": ProjectAction.MANAGE_AI_CONFIG_VARIATIONS,
-    "View Project": ProjectAction.VIEW_PROJECT,
+    "Manage Metrics":                  ProjectAction.MANAGE_METRICS,
+    "Manage Release Pipelines":        ProjectAction.MANAGE_PIPELINES,
+    "Create AI Configs":               ProjectAction.CREATE_AI_CONFIGS,
+    "Update AI Configs":               ProjectAction.UPDATE_AI_CONFIGS,
+    "Delete AI Configs":               ProjectAction.DELETE_AI_CONFIGS,
+    "Manage AI Variations":            ProjectAction.MANAGE_AI_CONFIG_VARIATIONS,
+    "View Project":                    ProjectAction.VIEW_PROJECT,
+
+    # =================================================================
+    # Observability permissions (Phase 14)
+    # Resource: proj/${roleAttribute/projects}:{type}/*  (no env segment)
+    # =================================================================
+    "View Sessions":                    ObservabilityAction.VIEW_SESSIONS,
+    "View Errors":                      ObservabilityAction.VIEW_ERRORS,
+    "View Logs":                        ObservabilityAction.VIEW_LOGS,
+    "View Traces":                      ObservabilityAction.VIEW_TRACES,
+    "Manage Alerts":                    ObservabilityAction.MANAGE_ALERTS,
+    "Manage Observability Dashboards":  ObservabilityAction.MANAGE_OBS_DASHBOARDS,
+    "Talk to Vega":                     ObservabilityAction.TALK_TO_VEGA,
 }
 
 # Environment-level: Maps DataFrame column name -> EnvironmentAction enum
@@ -491,6 +568,89 @@ CONTEXT_KIND_ACTIONS_FOR_PERMISSION: Dict[str, List[str]] = {
 
 
 # =============================================================================
+# LESSON 51: Observability Resource Map and Builders (Phase 14)
+# =============================================================================
+# Observability permissions use a DIFFERENT resource path from flags:
+#
+#   Flags:         proj/${roleAttribute/projects}:env/*:flag/*
+#   Observability: proj/${roleAttribute/projects}:session/*   ← no :env/* segment!
+#
+# OBSERVABILITY_RESOURCE_MAP serves two purposes (dict as feature flag pattern):
+#   1. Detection: "View Sessions" in OBSERVABILITY_RESOURCE_MAP → True
+#   2. Lookup:    OBSERVABILITY_RESOURCE_MAP["View Sessions"]   → "session"
+#
+# This dict-driven approach means adding a new observability permission
+# requires only ONE line change here — no if/elif needed in the builder.
+
+OBSERVABILITY_RESOURCE_MAP: Dict[str, str] = {
+    "View Sessions":                   "session",
+    "View Errors":                     "error",
+    "View Logs":                       "log",
+    "View Traces":                     "trace",
+    "Manage Alerts":                   "alert",
+    "Manage Observability Dashboards": "observability-dashboard",
+    "Talk to Vega":                    "vega",
+}
+
+
+def build_project_type_resource(
+    project_attr: str = "projects",
+    resource_type: str = "session"
+) -> str:
+    """
+    Build a project-scoped resource string for non-flag resource types.
+
+    Used for observability resources that have NO env segment in the path.
+    Verified against gonfalon/internal/roles/resource_identifier.go:
+    TraceResourceIdentifier and VegaResourceIdentifier both embed
+    ProjectResourceIdentifier (not EnvironmentResourceIdentifier).
+
+    Args:
+        project_attr:  Role attribute name for the project (default: "projects")
+        resource_type: Resource type segment (e.g. "session", "trace", "vega")
+
+    Returns:
+        Resource string without env segment
+
+    Example:
+        >>> build_project_type_resource("projects", "session")
+        'proj/${roleAttribute/projects}:session/*'
+        >>> build_project_type_resource("projects", "trace")
+        'proj/${roleAttribute/projects}:trace/*'
+    """
+    return f"proj/${{roleAttribute/{project_attr}}}:{resource_type}/*"
+
+
+def is_observability_permission(permission_name: str) -> bool:
+    """
+    Check if a permission uses a project-scoped observability resource.
+
+    LESSON: Dict presence as a feature flag.
+    'in' checks dict KEYS — O(1) lookup, not a linear scan.
+
+    Example:
+        >>> is_observability_permission("View Sessions")
+        True
+        >>> is_observability_permission("Create Flags")
+        False
+    """
+    return permission_name in OBSERVABILITY_RESOURCE_MAP
+
+
+def get_observability_resource_type(permission_name: str) -> str:
+    """
+    Get the resource type segment for an observability permission.
+
+    Example:
+        >>> get_observability_resource_type("View Sessions")
+        'session'
+        >>> get_observability_resource_type("Unknown")
+        ''
+    """
+    return OBSERVABILITY_RESOURCE_MAP.get(permission_name, "")
+
+
+# =============================================================================
 # LESSON 42: Critical Environment Resource Builders (Phase 12)
 # =============================================================================
 # These functions build resource strings with the LaunchDarkly critical
@@ -689,6 +849,67 @@ def get_resource_type_for_permission(permission_name: str) -> str:
         return "experiment"
     else:
         return "flag"
+
+
+# =============================================================================
+# LESSON 52: Permission Groups for Tab-Based UI (Phase 15)
+# =============================================================================
+# These dicts map tab names to the list of permissions shown in that tab.
+# They drive the UI layout — one tab per group, one mini-matrix per tab.
+#
+# Single source of truth: adding a permission here automatically appears
+# in the tab, the summary view, and the matrix initialisation.
+#
+# Used by: ui/matrix_tab.py
+
+PROJECT_PERMISSION_GROUPS: Dict[str, List[str]] = {
+    "🚩 Flag Lifecycle": [
+        "Create Flags",
+        "Update Flags",
+        "Archive Flags",
+        "Update Client Side Availability",
+    ],
+    "📊 Metrics & Pipelines": [
+        "Manage Metrics",
+        "Manage Release Pipelines",
+        "View Project",
+    ],
+    "🤖 AI Configs": [
+        "Create AI Configs",
+        "Update AI Configs",
+        "Delete AI Configs",
+        "Manage AI Variations",
+    ],
+    "🔭 Observability": [
+        # Read-only observability (view-*)
+        "View Sessions",
+        "View Errors",
+        "View Logs",
+        "View Traces",
+        # Management (previously in optional expander — now in this tab)
+        "Manage Alerts",
+        "Manage Observability Dashboards",
+        "Talk to Vega",
+    ],
+}
+
+ENV_PERMISSION_GROUPS: Dict[str, List[str]] = {
+    "🎯 Targeting & Approvals": [
+        "Update Targeting",
+        "Review Changes",
+        "Apply Changes",
+    ],
+    "🗂️ Segments": [
+        "Manage Segments",
+    ],
+    "🧪 Experiments": [
+        "Manage Experiments",
+    ],
+    "🔑 SDK & AI": [
+        "View SDK Key",
+        "Update AI Config Targeting",
+    ],
+}
 
 
 # =============================================================================

@@ -89,7 +89,7 @@ def _initialize_session_state() -> None:
     # Initialize generation mode and project isolation options
 
     if "generation_mode" not in st.session_state:
-        st.session_state.generation_mode = "hardcoded"
+        st.session_state.generation_mode = "role_attributes"
 
     # Project isolation options (ps-terraform-private pattern)
     if "prefix_team_keys" not in st.session_state:
@@ -144,7 +144,7 @@ def _render_generation_mode() -> None:
             "**Role Attributes**: Creates reusable template roles with placeholders. "
             "Best for multi-project enterprise deployments."
         ),
-        index=0 if st.session_state.generation_mode == "hardcoded" else 1,
+        index=1 if st.session_state.generation_mode == "role_attributes" else 0,
         key="generation_mode_radio"
     )
 

@@ -31,7 +31,8 @@ Source of truth: `docs/phases/phase11/TERRAFORM_PATTERNS.md`
 | Context kind statements in Create/Update Flags roles | `ld_actions.py` `CONTEXT_KIND_ACTIONS_FOR_PERMISSION` |
 | Download LD Payloads JSON | `ui/deploy_tab.py` |
 | Download Deployment Guide (Markdown) | `services/doc_generator.py`, `ui/deploy_tab.py` |
-| **Phase 13: Client Delivery Package** | 📋 Design complete — see `docs/phases/phase13/` |
+| **Phase 13: Client Delivery Package** | ✅ Implemented — `services/package_generator.py` |
+| **Phase 14: Observability Permissions** | 📋 Design complete — see `docs/phases/phase14/` |
 
 ---
 
@@ -206,9 +207,10 @@ The S2 template already defines which permissions to show by default vs hide:
 
 | # | Item | UI change? | Code change? |
 |---|------|:---:|:---:|
-| 1 | Add `Manage Context Kinds` to default project matrix | ✅ | ✅ `ld_actions.py` |
-| 2 | Optional permissions expander with `Bypass Required Approvals`, `Manage Destinations`, `Manage Triggers`, `Manage Holdouts`, `Export Segments` | ✅ | ✅ `ld_actions.py` |
-| 3 | Additional/Global Roles (`view_teams`, `manage_personal_access_tokens`) in Setup tab | ✅ | ✅ `payload_builder.py` |
+| 1 | **Phase 15: UI Grouping & Tab Layout** — Tab-based matrix (Flags, Metrics, AI, Observability) | ✅ | ✅ `ld_actions.py`, `matrix_tab.py` |
+| 2 | Add `Manage Context Kinds` to default project matrix | ✅ | ✅ `ld_actions.py` |
+| 3 | Optional permissions expander → moved into Phase 15 Observability tab | ✅ | ✅ `ld_actions.py` |
+| 4 | Additional/Global Roles (`view_teams`, `manage_personal_access_tokens`) in Setup tab | ✅ | ✅ `payload_builder.py` |
 
 ### 🟡 Medium — customer-specific needs
 

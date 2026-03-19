@@ -18,9 +18,30 @@
 | **8** | [Deploy UI](./phase8/) | ✅ Complete | Complete deployment UI |
 | **9** | Integration | ✅ Complete | Wire everything together |
 | **10** | Testing | ✅ Complete | Testing and polish |
-| **11** | [Role Attributes](./phase11/) | ✅ Complete | Role attribute pattern for multi-team scoping |
-| **12** | [Env Scoping + Role Correctness](./phase12/) | ✅ Complete | Kebab-case attrs, context kind statements, base_permissions fix |
-| **13** | [Client Delivery Package](./phase13/) | 📋 Design Complete | ZIP with API-ready JSON + Python deploy script |
+| **11** | [Role Attribute Pattern](./phase11/) | ✅ Complete | **Core pattern**: shared template roles + `${roleAttribute/...}` placeholders + team scoping |
+| **12** | [Role Attribute Corrections](./phase12/) | ✅ Complete | Kebab-case attr keys, context kind statements, `base_permissions` fix |
+| **13** | [Client Delivery Package](./phase13/) | ✅ Complete | ZIP with API-ready JSON + Python deploy script |
+| **14** | [Observability Permissions](./phase14/) | ✅ Complete | Sessions, Logs, Errors, Traces, Alerts, Dashboards, Vega AI |
+| **15** | [UI Grouping & Tab Layout](./phase15/) | ✅ Complete | Tab-based matrix grouped by feature domain (Flags, AI, Observability, etc.) |
+
+---
+
+## Upcoming Phases
+
+| Phase | Name | Priority | Goal |
+|-------|------|----------|------|
+| **16** | [Terraform Export](./phase16/) | 🔴 High | Generate `.tf` files matching ps-terraform-private patterns |
+| **17** | [Global / Account-Level Roles](./phase17/) | 🔴 High | `view_teams`, `manage_personal_access_tokens` — in every sa-demo team |
+| **18** | [LD Views Support](./phase18/) | 🔴 High | RBAC for LaunchDarkly saved flag filter Views |
+| **19** | [Manage Context Kinds](./phase19/) | 🔴 High | Missing Default=1 permission from S2 template |
+| **20** | [Deny Lists](./phase20/) | 🟡 Medium | Explicit exclusions for environments/flags/projects |
+| **21** | [Visible Teams](./phase21/) | 🟡 Medium | `visibleTeams` role attribute — in every sa-demo config |
+| **22** | [Project Admin Roles](./phase22/) | 🟡 Medium | Destructive admin actions (delete project, rotate SDK keys) |
+| **23** | [Environment Tag Specifiers](./phase23/) | 🟢 Lower | `env/*;tag1,tag2` tag-based environment filtering |
+| **24** | [Flag / Segment Specifiers](./phase24/) | 🟢 Lower | `flags=["feature-*"]`, deny patterns |
+| **25** | [Team Management Global Roles](./phase25/) | 🟢 Lower | `manage_members`, `manage_teams`, `manage_integrations` |
+
+> Full details, rationale, and design notes: **[ROADMAP.md](../ROADMAP.md)**
 
 ---
 
@@ -121,4 +142,4 @@ phase{N}/
 
 ## Navigation
 
-[← Back to Main Docs](../) | [Phase 11](./phase11/) | [Phase 12](./phase12/) | [Phase 13](./phase13/)
+[← Back to Main Docs](../) | [Roadmap](../ROADMAP.md) | [Backlog](../BACKLOG.md)

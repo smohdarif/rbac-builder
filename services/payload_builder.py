@@ -39,6 +39,10 @@ from core.ld_actions import (
     build_project_only_role_attribute_resource,
     build_context_kind_role_attribute_resource,
     CONTEXT_KIND_ACTIONS_FOR_PERMISSION,
+    # Phase 14: Observability support
+    build_project_type_resource,
+    is_observability_permission,
+    get_observability_resource_type,
     PERMISSION_ATTRIBUTE_MAP,
     get_attribute_name,
     is_project_level_permission,
@@ -867,13 +871,36 @@ class RoleAttributePayloadBuilder:
         # =================================================================
         # viewProject action targets the project itself, not flags
         if permission_name == "View Project":
+            # viewProject targets the project itself — no resource type needed
             policy = [{
                 "effect": "allow",
                 "actions": actions,
                 "resources": [build_project_only_role_attribute_resource("projects")]
             }]
+
+        elif is_observability_permission(permission_name):
+            # =================================================================
+            # LESSON 51: Observability permissions (Phase 14)
+            # =================================================================
+            # Observability resources are project-scoped — NO :env/* segment.
+            # Verified against gonfalon/internal/roles/resource_identifier.go.
+            # Uses dict lookup (data-driven) instead of isinstance (type-driven).
+            obs_resource_type = get_observability_resource_type(permission_name)
+            policy = [{
+                "effect": "allow",
+                "actions": actions,
+                "resources": [build_project_type_resource("projects", obs_resource_type)]
+            }]
+            # Add viewProject for all observability roles
+            policy.append({
+                "effect": "allow",
+                "actions": ["viewProject"],
+                "resources": [build_project_only_role_attribute_resource("projects")]
+            })
+
         else:
-            # Build policy with role attribute placeholder
+            # Standard flag/segment/metric permissions
+            # Resource: proj/${roleAttribute/projects}:env/*:{type}/*
             policy = [{
                 "effect": "allow",
                 "actions": actions,
@@ -883,11 +910,6 @@ class RoleAttributePayloadBuilder:
             # =================================================================
             # LESSON: Context Kind statement (matches ps-terraform default)
             # =================================================================
-            # By default, flag creation/update roles include context kind
-            # permissions. This matches manage-flags/main.tf where:
-            #   create_context_kind = coalesce(null, !false) = true
-            # create-flags gets: createContextKind
-            # update-flags gets: updateContextKind, updateAvailabilityForExperiments
             context_kind_actions = CONTEXT_KIND_ACTIONS_FOR_PERMISSION.get(permission_name)
             if context_kind_actions:
                 policy.append({

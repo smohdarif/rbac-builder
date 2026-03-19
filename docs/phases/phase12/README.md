@@ -4,7 +4,8 @@
 |-------|-------|
 | **Phase** | 12 |
 | **Status** | ✅ Complete |
-| **Goal** | Scope env-level roles to exact environments via role attributes; fix role correctness gaps vs existing LD accounts |
+| **Goal** | Correct and harden the Phase 11 role attribute pattern: kebab-case attribute keys, context kind statements, `base_permissions` field |
+| **Base** | Builds on [Phase 11 — Role Attribute Pattern](../phase11/) |
 
 ---
 
