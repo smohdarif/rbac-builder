@@ -1,0 +1,11 @@
+# RBAC Builder for LaunchDarkly
+# Runtime dependencies only — Python 3.10+
+
+# Web framework
+streamlit>=1.30.0
+
+# HTTP client (used by LD API client + generated deploy.py)
+requests>=2.31.0
+
+# Data handling
+pandas>=2.0.0

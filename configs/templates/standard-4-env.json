@@ -1,0 +1,288 @@
+{
+  "version": "1.0",
+  "customer_name": "TEMPLATE",
+  "project_key": "template",
+  "mode": "Manual",
+  "created_at": null,
+  "updated_at": null,
+  "teams": [
+    {
+      "key": "dev",
+      "name": "Developer",
+      "description": "Development team - builds features and fixes bugs"
+    },
+    {
+      "key": "qa",
+      "name": "QA Engineer",
+      "description": "Quality assurance team - tests features"
+    },
+    {
+      "key": "po",
+      "name": "Product Owner",
+      "description": "Product management - defines requirements"
+    },
+    {
+      "key": "release-manager",
+      "name": "Release Manager",
+      "description": "Controls production releases"
+    }
+  ],
+  "env_groups": [
+    {
+      "key": "development",
+      "requires_approval": false,
+      "is_critical": false,
+      "notes": "Development environment - free experimentation"
+    },
+    {
+      "key": "test",
+      "requires_approval": false,
+      "is_critical": false,
+      "notes": "Test/QA environment - automated testing"
+    },
+    {
+      "key": "staging",
+      "requires_approval": false,
+      "is_critical": false,
+      "notes": "Staging environment - pre-production validation"
+    },
+    {
+      "key": "production",
+      "requires_approval": true,
+      "is_critical": true,
+      "notes": "Production environment - live users"
+    }
+  ],
+  "project_permissions": [
+    {
+      "team_key": "dev",
+      "create_flags": true,
+      "update_flags": true,
+      "archive_flags": true,
+      "manage_webhooks": false,
+      "manage_integrations": false,
+      "manage_environments": false,
+      "manage_tokens": false,
+      "manage_context_kinds": false,
+      "manage_segments": true,
+      "manage_ai_configs": false
+    },
+    {
+      "team_key": "qa",
+      "create_flags": false,
+      "update_flags": true,
+      "archive_flags": false,
+      "manage_webhooks": false,
+      "manage_integrations": false,
+      "manage_environments": false,
+      "manage_tokens": false,
+      "manage_context_kinds": false,
+      "manage_segments": true,
+      "manage_ai_configs": false
+    },
+    {
+      "team_key": "po",
+      "create_flags": true,
+      "update_flags": true,
+      "archive_flags": false,
+      "manage_webhooks": false,
+      "manage_integrations": false,
+      "manage_environments": false,
+      "manage_tokens": false,
+      "manage_context_kinds": false,
+      "manage_segments": false,
+      "manage_ai_configs": false
+    },
+    {
+      "team_key": "release-manager",
+      "create_flags": true,
+      "update_flags": true,
+      "archive_flags": true,
+      "manage_webhooks": true,
+      "manage_integrations": true,
+      "manage_environments": true,
+      "manage_tokens": true,
+      "manage_context_kinds": true,
+      "manage_segments": true,
+      "manage_ai_configs": true
+    }
+  ],
+  "env_permissions": [
+    {
+      "team_key": "dev",
+      "environment_key": "development",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": true
+    },
+    {
+      "team_key": "dev",
+      "environment_key": "test",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": true,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "dev",
+      "environment_key": "staging",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": true,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "dev",
+      "environment_key": "production",
+      "update_targeting": false,
+      "apply_changes": false,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": false,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "qa",
+      "environment_key": "development",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": true,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "qa",
+      "environment_key": "test",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": true
+    },
+    {
+      "team_key": "qa",
+      "environment_key": "staging",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "qa",
+      "environment_key": "production",
+      "update_targeting": false,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": false,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "po",
+      "environment_key": "development",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": false,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "po",
+      "environment_key": "test",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": false,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "po",
+      "environment_key": "staging",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": false,
+      "bypass_required_approval": false,
+      "manage_segments": false,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "po",
+      "environment_key": "production",
+      "update_targeting": false,
+      "apply_changes": false,
+      "review_changes": true,
+      "bypass_required_approval": false,
+      "manage_segments": false,
+      "manage_holdouts": false,
+      "manage_triggers": false
+    },
+    {
+      "team_key": "release-manager",
+      "environment_key": "development",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": true,
+      "bypass_required_approval": true,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": true
+    },
+    {
+      "team_key": "release-manager",
+      "environment_key": "test",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": true,
+      "bypass_required_approval": true,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": true
+    },
+    {
+      "team_key": "release-manager",
+      "environment_key": "staging",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": true,
+      "bypass_required_approval": true,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": true
+    },
+    {
+      "team_key": "release-manager",
+      "environment_key": "production",
+      "update_targeting": true,
+      "apply_changes": true,
+      "review_changes": true,
+      "bypass_required_approval": true,
+      "manage_segments": true,
+      "manage_holdouts": true,
+      "manage_triggers": true
+    }
+  ]
+}

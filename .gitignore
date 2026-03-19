@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# API Keys (never commit these)
+**/secrets.json
+**/credentials.json
+**/*_api_key*
+**/*_token*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# Type Checking
+.pyright/
+.mypy_cache/
+
+# Configs (keep structure, ignore customer data)
+configs/customers/*
+!configs/customers/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Sample JSON files with real customer data
+rbacjsonsample/
