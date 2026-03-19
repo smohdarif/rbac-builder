@@ -396,9 +396,6 @@ Sessions, Errors, Logs, Traces, Alerts, Dashboards, and the Vega AI assistant.
 **Why?** Observability data (traces, logs, sessions) is collected across all environments.
 When debugging, you typically need visibility across production AND staging simultaneously.
 
-This was verified against `gonfalon/internal/roles/resource_identifier.go` —
-every observability type embeds `ProjectResourceIdentifier`, not `EnvironmentResourceIdentifier`.
-
 ---
 
 ### Resource Syntax
