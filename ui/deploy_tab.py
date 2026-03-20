@@ -753,6 +753,65 @@ def _render_ld_payload_generator(customer_name: str, validation_result) -> None:
         _render_ld_payload_display(customer_name)
 
 
+def _render_delivery_options(customer_name: str) -> None:
+    """
+    Render all download/delivery options in one grouped section.
+
+    Three options presented as cards side by side so the user can
+    choose the right format for their workflow.
+    """
+    ld_payload = st.session_state.ld_payload
+    slug = customer_name.lower().replace(" ", "_")
+    project_key = st.session_state.get("project", "")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("**📥 LD Payloads JSON**")
+        st.caption("Raw JSON for the LD API. One file per role + team. Use with deploy.py or the API directly.")
+        st.download_button(
+            label="Download JSON",
+            data=ld_payload.to_json(),
+            file_name=f"{slug}_ld_payloads.json",
+            mime="application/json",
+            use_container_width=True,
+            type="primary"
+        )
+
+    with col2:
+        st.markdown("**📄 Deployment Guide**")
+        st.caption("Human-readable Markdown explaining every role, team, and how to deploy. Share with the customer.")
+        from services import generate_deployment_guide
+        doc_content = generate_deployment_guide(ld_payload, project_key)
+        st.download_button(
+            label="Download Guide",
+            data=doc_content,
+            file_name=f"{slug}_deployment_guide.md",
+            mime="text/markdown",
+            use_container_width=True
+        )
+
+    with col3:
+        st.markdown("**📦 Deployment Package**")
+        st.caption("Complete ZIP: API-ready JSON files + `deploy.py` script. Customer runs `python deploy.py` — done.")
+        try:
+            from services import PackageGenerator
+            zip_bytes = PackageGenerator(ld_payload, project_key).generate_package()
+            st.download_button(
+                label="Download ZIP",
+                data=zip_bytes,
+                file_name=f"{slug}_rbac_deployment.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Could not generate package: {e}")
+
+    # Payload preview (collapsed — available but not in the way)
+    with st.expander("🔍 Preview Payload", expanded=False):
+        _render_ld_payload_display(customer_name)
+
+
 def _render_ld_payload_display(customer_name: str) -> None:
     """Render the generated LD payload preview and download."""
     ld_payload = st.session_state.ld_payload
@@ -783,68 +842,7 @@ def _render_ld_payload_display(customer_name: str) -> None:
         st.markdown("**Complete Deployment Package**")
         st.json(ld_payload.to_dict())
 
-    # Download buttons row
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.download_button(
-            label="📥 Download LD Payloads (JSON)",
-            data=ld_payload.to_json(),
-            file_name=f"{customer_name.lower().replace(' ', '_')}_ld_payloads.json",
-            mime="application/json",
-            use_container_width=True,
-            type="primary"
-        )
-
-    with col2:
-        # =================================================================
-        # LESSON: Dynamically generated Markdown documentation
-        # =================================================================
-        # We generate a human-readable deployment guide from the payload.
-        # The customer receives both the JSON (to deploy) and the Markdown
-        # (to understand what was built and how to apply it).
-        from services import generate_deployment_guide
-        project_key = st.session_state.get("project_key", "")
-        doc_content = generate_deployment_guide(ld_payload, project_key)
-
-        st.download_button(
-            label="📄 Download Deployment Guide (Markdown)",
-            data=doc_content,
-            file_name=f"{customer_name.lower().replace(' ', '_')}_deployment_guide.md",
-            mime="text/markdown",
-            use_container_width=True
-        )
-
-    # =================================================================
-    # LESSON: In-memory ZIP for the complete deployment package
-    # =================================================================
-    # Phase 13: PackageGenerator builds a ZIP in memory (no disk write).
-    # The client unzips and runs: python deploy.py
-    # See: services/package_generator.py
-    st.divider()
-    st.markdown("##### 📦 Complete Deployment Package")
-    st.caption(
-        "Everything the client needs in one ZIP: "
-        "API-ready JSON files, a Python deploy script, and instructions. "
-        "Client runs `python deploy.py` — no manual steps."
-    )
-
-    try:
-        from services import PackageGenerator
-        generator  = PackageGenerator(ld_payload, project_key)
-        zip_bytes  = generator.generate_package()
-        slug       = customer_name.lower().replace(" ", "_")
-
-        st.download_button(
-            label="📦 Download Deployment Package (ZIP)",
-            data=zip_bytes,
-            file_name=f"{slug}_rbac_deployment.zip",
-            mime="application/zip",
-            use_container_width=True,
-            type="primary"
-        )
-    except Exception as e:
-        st.error(f"Could not generate package: {e}")
+    # Downloads are now in _render_delivery_options (Step 3)
 
 
 # =============================================================================
@@ -853,19 +851,12 @@ def _render_ld_payload_display(customer_name: str) -> None:
 
 def render_deploy_tab(customer_name: str = "", mode: str = "Manual") -> None:
     """
-    Render the Deploy tab UI.
+    Render the Deploy tab UI as a clean 3-step flow.
 
-    This is the main entry point for Tab 3. It manages:
-    - Configuration validation
-    - Payload generation
-    - Save/download functionality
-    - API deployment (Connected mode)
-
-    Args:
-        customer_name: Customer name from sidebar
-        mode: Mode selection (Manual/Connected) from sidebar
+    Step 1 — Review: summary + validation + optional config save
+    Step 2 — Generate: produce LD API payload
+    Step 3 — Download & Deploy: all delivery options in one place
     """
-    # Initialize deployment session state
     _initialize_deploy_state()
 
     st.header("Step 3: Review & Deploy")
@@ -874,69 +865,57 @@ def render_deploy_tab(customer_name: str = "", mode: str = "Manual") -> None:
         st.info("Complete Step 1 first.")
         return
 
-    # Summary section
+    # ── Step 1: Review ────────────────────────────────────────────────────────
+    st.markdown("### 1️⃣ Review Configuration")
+
     _render_summary(customer_name)
-
-    st.divider()
-
-    # Validation section
     validation_result = _render_validation(customer_name)
 
-    st.divider()
+    # Config save/download collapsed — secondary action, not primary CTA
+    with st.expander("🗂️ Save or Export Configuration", expanded=False):
+        st.caption("Save the rbac-builder setup to disk or download it as JSON for later use.")
+        config_data = _build_config_dict(customer_name, mode)
+        config_json = json.dumps(config_data, indent=2, default=str)
+        _render_save_download_buttons(customer_name, mode, config_json)
 
-    # JSON preview
+    # Optional JSON preview
     _render_preview_json(customer_name, mode)
 
     st.divider()
 
-    # Build config JSON for save/download
-    config_data = _build_config_dict(customer_name, mode)
-    config_json = json.dumps(config_data, indent=2, default=str)
+    # ── Step 2: Generate ──────────────────────────────────────────────────────
+    st.markdown("### 2️⃣ Generate LD Payload")
 
-    # Save/download buttons
-    _render_save_download_buttons(customer_name, mode, config_json)
+    _render_ld_payload_generator(customer_name, validation_result)
 
     st.divider()
 
-    # =====================================================================
-    # LESSON: Mode-Based UI - Connected Mode Shows Deployment UI
-    # =====================================================================
-    # In Connected mode, we show the API configuration and deployment UI
-    # In Manual mode, we just show a message to switch modes
+    # ── Step 3: Download & Deploy ─────────────────────────────────────────────
+    st.markdown("### 3️⃣ Download & Deploy")
 
+    if "ld_payload" not in st.session_state or not st.session_state.ld_payload:
+        st.info("Generate the payload in Step 2 first.")
+        return
+
+    # All download options in one place
+    _render_delivery_options(customer_name)
+
+    # API deployment (Connected mode only)
     if mode == "Connected":
-        # API Configuration
+        st.divider()
         _render_api_config()
         st.divider()
-
-        # Deployment Options
         _render_deploy_options()
         st.divider()
 
-        # Deploy section - only show if we have a payload
-        if validation_result.is_valid:
-            if "ld_payload" in st.session_state and st.session_state.ld_payload:
-                payload = st.session_state.ld_payload
+        payload = st.session_state.ld_payload
+        _render_deploy_button(payload)
 
-                # Deploy button
-                _render_deploy_button(payload)
+        if st.session_state.get("deploy_in_progress"):
+            _render_deploy_progress()
 
-                # Progress (during deployment - though usually too fast to see)
-                if st.session_state.get("deploy_in_progress"):
-                    _render_deploy_progress()
-
-                # Results (after deployment)
-                if st.session_state.get("deploy_result"):
-                    _render_deploy_results(st.session_state.deploy_result)
-                    _render_rollback_button()
-
-                st.divider()
-            else:
-                st.info("👆 Generate LaunchDarkly payload below to enable deployment")
+        if st.session_state.get("deploy_result"):
+            _render_deploy_results(st.session_state.deploy_result)
+            _render_rollback_button()
     else:
-        st.info("💡 Switch to **Connected** mode in the sidebar to deploy via API.")
-
-    st.divider()
-
-    # LD payload generator (always available)
-    _render_ld_payload_generator(customer_name, validation_result)
+        st.info("💡 Switch to **Connected** mode in the sidebar to deploy directly via the LD API.")
