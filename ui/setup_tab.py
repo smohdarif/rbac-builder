@@ -184,15 +184,12 @@ def _render_default_projects_input() -> None:
     st.session_state.project = st.text_input(
         "Project Key",
         value=st.session_state.get("project", ""),
-        help="Enter the LaunchDarkly project key. Each team will have access to this single project only.",
-        key="project_key_role_attr"
+        help="Enter the LaunchDarkly project key (e.g. 'voya-web'). Each team is isolated to this project. For multi-project deployments, generate separate payloads per project.",
+        key="project_key_role_attr",
+        placeholder="e.g. voya-web"
     )
 
     project_key = st.session_state.get("project", "default") or "default"
-
-    st.caption(
-        "For multi-project deployments, generate separate payloads for each project."
-    )
 
     # Team key prefix option
     st.session_state.prefix_team_keys = st.checkbox(
@@ -338,8 +335,8 @@ def render_setup_tab(customer_name: str = "", mode: str = "Manual") -> None:
     # Show different inputs based on whether user selects hardcoded
     # or role_attributes mode.
 
-    # Three-column layout for mode, project, and env groups
-    col1, col2, col3 = st.columns([1, 1, 1])
+    # Three-column layout: Generation Mode | Project Isolation | Environment Groups (wider)
+    col1, col2, col3 = st.columns([1, 1, 2])
 
     with col1:
         _render_generation_mode()
