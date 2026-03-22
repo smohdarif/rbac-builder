@@ -66,7 +66,8 @@ resource.replace("${", "$${")
 | Document | Description |
 |----------|-------------|
 | [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 15 test cases, implementation plan |
-| [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | String escaping, HCL generation, set() lookup |
+| [TERRAFORM_CONCEPTS.md](./TERRAFORM_CONCEPTS.md) | **Start here if new to Terraform** — complete concepts guide: what is Terraform, HCL, providers, resources, references, role attributes, ${ escaping, init/plan/apply |
+| [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | Python-specific concepts: string escaping, HCL generation, set() lookup |
 
 ---
 
