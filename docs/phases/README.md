@@ -30,7 +30,7 @@
 
 | Phase | Name | Priority | Goal |
 |-------|------|----------|------|
-| **16** | [Terraform Export](./phase16/) | 🔴 High | Generate `.tf` files matching ps-terraform-private patterns |
+| **16** | [Terraform Export](./phase16/) | 🔴 High — 📋 Design Complete | Generate inline `.tf` files — standalone `terraform apply` delivery |
 | **17** | [Global / Account-Level Roles](./phase17/) | 🔴 High | `view_teams`, `manage_personal_access_tokens` — in every sa-demo team |
 | **18** | [LD Views Support](./phase18/) | 🔴 High | RBAC for LaunchDarkly saved flag filter Views |
 | **19** | [Manage Context Kinds](./phase19/) | 🔴 High | Missing Default=1 permission from S2 template |

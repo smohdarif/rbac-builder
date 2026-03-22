@@ -3,23 +3,91 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | 16 |
-| **Status** | ⏳ Upcoming |
+| **Status** | 📋 Design Complete — Ready for Implementation |
 | **Priority** | 🔴 High |
-| **Goal** | Generate `.tf` files matching `ps-terraform-private` module patterns as a Terraform deliverable |
-| **Depends on** | Phase 13 (Delivery Package), Phase 11 (Role Attribute Pattern) |
+| **Goal** | Generate a complete, runnable Terraform package — `.tf` files the client runs with `terraform apply` |
+| **Depends on** | Phase 13 (Delivery ZIP pattern), Phase 11 (Role Attribute Pattern) |
 
-## Summary
+---
 
-SAs who deliver via Terraform receive a `main.tf` + `variables.tf` + `providers.tf` package instead of JSON + deploy.py. Uses `ps-terraform-private` module sources.
+## What the Client Gets
 
-## Full Design
+```
+voya_terraform.zip
+└── voya_terraform/
+    ├── main.tf        ← custom roles + teams as inline HCL resources
+    ├── providers.tf   ← launchdarkly provider + required version
+    ├── variables.tf   ← api_key variable (sensitive)
+    └── README.md      ← how to run terraform init + apply
+```
 
-See [ROADMAP.md — Phase 16](../../ROADMAP.md#phase-16-terraform-export)
+Client runs:
+```bash
+unzip voya_terraform.zip && cd voya_terraform
+terraform init
+terraform plan    # preview
+terraform apply   # create roles + teams in LD
+```
 
-## Checklist
+---
 
-- [ ] DESIGN.md written
-- [ ] PYTHON_CONCEPTS.md written
+## Key Design Decision: Inline vs Module-based
+
+The sa-demo uses module-based Terraform (`source = "./roles/flag-lifecycle/per-project"`), which requires bundling the entire `roles/` directory from ps-terraform-private (~50 files).
+
+**We use inline resources** — standalone, no module dependencies:
+
+| | Inline ✅ | Module-based |
+|-|-----------|--------------|
+| Standalone `terraform apply`? | ✅ | ❌ needs bundled modules |
+| Output size | Small (1 `main.tf`) | Large (~50 module files) |
+| Matches sa-demo? | ❌ different structure | ✅ exact match |
+| Best for | One-time delivery | Ongoing IaC management |
+
+Module-based Terraform can be a future Phase 16b enhancement.
+
+---
+
+## Critical HCL Escaping Note
+
+JSON uses `${roleAttribute/projects}`. HCL uses `${...}` for interpolation.
+
+**Must escape: `${` → `$${` in all generated HCL strings.**
+
+```python
+resource.replace("${", "$${")
+# "proj/${roleAttribute/projects}:..." → "proj/$${roleAttribute/projects}:..."
+```
+
+---
+
+## Design Documents
+
+| Document | Description |
+|----------|-------------|
+| [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 15 test cases, implementation plan |
+| [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | String escaping, HCL generation, set() lookup |
+
+---
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `services/terraform_generator.py` | CREATE — `TerraformGenerator` class |
+| `services/__init__.py` | ADD `TerraformGenerator` export |
+| `ui/deploy_tab.py` | ADD 4th download card "🏗️ Download Terraform" |
+| `tests/test_terraform_generator.py` | CREATE — 15 test cases |
+
+---
+
+## Implementation Checklist
+
+- [x] DESIGN.md complete
+- [x] PYTHON_CONCEPTS.md complete
 - [ ] `services/terraform_generator.py` created
-- [ ] `ui/deploy_tab.py` — 🏗️ Terraform Export button added
-- [ ] Tests created and passing
+- [ ] `services/__init__.py` updated
+- [ ] `ui/deploy_tab.py` updated
+- [ ] `tests/test_terraform_generator.py` created — all 15 tests passing
+- [ ] Validate: generated `main.tf` has no unescaped `${` in strings
+- [ ] Validate: `terraform validate` passes on sample output
