@@ -116,6 +116,7 @@ The AI returns both:
 | Document | Description |
 |----------|-------------|
 | [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 12 test cases, implementation plan |
+| [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) | **Master system prompt** with guardrails, token budget, cost analysis, API key management |
 | [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | Python concepts: API clients, streaming, system prompts, JSON parsing, Streamlit chat components |
 
 ---
@@ -128,7 +129,8 @@ The AI returns both:
 | `core/rbac_knowledge.py` | CREATE — Embedded RBAC best practices knowledge base |
 | `ui/advisor_tab.py` | CREATE — Tab 5 chat UI with context panel |
 | `ui/__init__.py` | ADD `render_advisor_tab` export |
-| `app.py` | ADD Tab 5, Gemini API key in sidebar |
+| `app.py` | ADD Tab 5 |
+| `.streamlit/secrets.toml` | ADD `GEMINI_API_KEY` (not committed to git) |
 | `requirements.txt` | ADD `google-generativeai>=0.8.0` |
 | `tests/test_ai_advisor.py` | CREATE — 12 test cases |
 

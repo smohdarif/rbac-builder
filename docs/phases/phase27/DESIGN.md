@@ -13,6 +13,8 @@
 |----------|------|
 | Phase README | [README.md](./README.md) |
 | Python Concepts | [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) |
+| **Master System Prompt** | [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) |
+| Token Budget & Cost Analysis | [SYSTEM_PROMPT.md — Token Budget](./SYSTEM_PROMPT.md#token-budget-analysis) |
 | LD Custom Roles Docs | https://docs.launchdarkly.com/home/account/custom-roles |
 | Gemini API Reference | https://ai.google.dev/gemini-api/docs |
 
@@ -515,9 +517,22 @@ from services.ai_advisor import RBACAdvisor, AdvisorError
 
 # Session state keys for this tab
 ADVISOR_MESSAGES_KEY = "advisor_messages"
-ADVISOR_API_KEY_KEY = "gemini_api_key"
 ADVISOR_INSTANCE_KEY = "advisor_instance"
 ADVISOR_LAST_RECOMMENDATION_KEY = "advisor_last_recommendation"
+
+
+def _get_gemini_api_key() -> str:
+    """
+    Get the Gemini API key from Streamlit secrets or environment variable.
+    Admin-provided — SAs do NOT enter their own key.
+    """
+    # Streamlit Cloud: secrets management (.streamlit/secrets.toml)
+    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+        return st.secrets["GEMINI_API_KEY"]
+
+    # Localhost: environment variable
+    import os
+    return os.environ.get("GEMINI_API_KEY", "")
 
 
 def _initialize_session_state() -> None:
@@ -660,17 +675,15 @@ def render_advisor_tab(customer_name: str = "") -> None:
         "The AI will recommend a permission matrix based on LaunchDarkly best practices."
     )
 
-    # --- API Key Input ---
-    api_key = st.text_input(
-        "Gemini API Key",
-        type="password",
-        placeholder="Enter your Gemini API key...",
-        help="Required for AI recommendations. Get one at ai.google.dev",
-        key=ADVISOR_API_KEY_KEY,
-    )
+    # --- API Key (admin-provided, not SA-entered) ---
+    api_key = _get_gemini_api_key()
 
     if not api_key:
-        st.info("Enter a Gemini API key above to start chatting with the RBAC Advisor.")
+        st.info(
+            "RBAC Advisor requires configuration. "
+            "Set the `GEMINI_API_KEY` environment variable or add it to "
+            "`.streamlit/secrets.toml`."
+        )
         return
 
     # --- Context Panel ---
