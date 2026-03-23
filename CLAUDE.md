@@ -307,7 +307,8 @@ pytest tests/ --cov=. --cov-report=html
 | 23 | `services/payload_builder.py` | Tag-Based Env Filtering | [📄 Phase 23](docs/phases/phase23/) | 📋 Planned |
 | 24 | `services/payload_builder.py` | Flag/Segment Subset Scoping | [📄 Phase 24](docs/phases/phase24/) | 📋 Planned |
 | 25 | `core/ld_actions.py` | Account-Level Admin Roles | [📄 Phase 25](docs/phases/phase25/) | 📋 Planned |
-| 26 | `core/session_tracker.py` | Active User Counter | [📄 Phase 26](docs/phases/phase26/) | 📋 Planned |
+| 26 | `core/session_tracker.py` | Active User Counter | [📄 Phase 26](docs/phases/phase26/) | ✅ `test_session_tracker.py` |
+| 27 | `ui/advisor_tab.py` | RBAC Advisor (AI Chat) | [📄 Phase 27](docs/phases/phase27/) | 📋 Planned |
 
 ## Running the App
 
