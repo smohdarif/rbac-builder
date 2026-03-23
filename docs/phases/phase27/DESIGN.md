@@ -423,6 +423,10 @@ class RBACAdvisor:
         """
         Set customer context and initialize a new chat session.
         Call this when the user's setup changes or on first load.
+
+        Enables Google Search grounding so the model can search
+        docs.launchdarkly.com for edge-case questions not covered
+        in the embedded knowledge base.
         """
         self.system_prompt = build_system_prompt(
             teams=teams,
@@ -432,11 +436,22 @@ class RBACAdvisor:
             available_env_permissions=get_all_env_permissions(),
         )
 
-        # Start a new chat with system instruction
+        # Google Search grounding — model searches LD docs when needed
+        from google.genai import types
+        grounding_tool = types.Tool(google_search=types.GoogleSearch())
+
+        # Start a new chat with system instruction + search tool
         self.model = genai.GenerativeModel(
             self.MODEL_NAME,
             system_instruction=self.system_prompt,
+            tools=[grounding_tool],
         )
+
+        # Disable thinking tokens to keep costs low
+        self.generation_config = genai.GenerationConfig(
+            thinking_config=genai.ThinkingConfig(thinking_budget=0)
+        )
+
         self.chat = self.model.start_chat(history=[])
 
     def stream_recommendation(

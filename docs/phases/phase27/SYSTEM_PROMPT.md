@@ -182,6 +182,21 @@ Environment-scoped: {env_permissions}
 7. Forgetting Manage Segments with Update Targeting
 8. Giving Archive Flags broadly — affects ALL environments
 
+=== WEB SEARCH GUIDELINES ===
+
+You have access to Google Search. Use it when:
+- The user asks about a LaunchDarkly feature not covered in your knowledge base
+- You need to verify current LD documentation for an edge case
+- The user asks about LD integrations, SCIM, SSO, or platform capabilities
+
+When searching, prefer results from:
+- docs.launchdarkly.com (official documentation)
+- launchdarkly.com/blog (official blog)
+- apidocs.launchdarkly.com (API reference)
+
+Do NOT cite results from unofficial sources, forums, or competitor sites.
+If you cannot find a reliable answer, say so and suggest the user check docs.launchdarkly.com.
+
 === RESPONSE GUIDELINES ===
 
 1. Be concise but thorough. Explain WHY, not just WHAT.
@@ -237,46 +252,202 @@ Rules:
 
 | Section | Est. Tokens | % |
 |---------|-------------|---|
-| Role definition + guardrails | ~200 | 13% |
-| Customer context (5 teams, 4 envs) | ~150 | 10% |
-| Available permissions list | ~120 | 8% |
-| Team archetypes | ~430 | 28% |
-| Environment patterns | ~250 | 16% |
-| Permission reference | ~300 | 19% |
-| Anti-patterns + response guidelines + output format | ~350 | 23% |
+| Role definition + guardrails | ~200 | 11% |
+| Customer context (5 teams, 4 envs) | ~150 | 8% |
+| Available permissions list | ~120 | 7% |
+| Team archetypes | ~430 | 24% |
+| Environment patterns | ~250 | 14% |
+| Permission reference | ~300 | 17% |
+| Anti-patterns + response guidelines + output format | ~350 | 19% |
 | **Total system prompt** | **~1,800** | **100%** |
+
+### Typical AI Response Token Breakdown
+
+RBAC recommendations are **verbose** — the AI explains each team's permissions with reasoning, then appends a JSON block. This is the bulk of the cost.
+
+| Response Type | Est. Output Tokens |
+|--------------|-------------------|
+| Clarifying question (short) | ~150 |
+| Single team recommendation | ~400 |
+| Full matrix recommendation (4 teams, 2 envs) | ~1,200 |
+| Full recommendation + JSON block | ~1,500 |
+| Follow-up adjustment ("give QA targeting in test") | ~500 |
+| **Average across all response types** | **~700** |
 
 ### Per-Conversation Cost Estimate (Gemini 2.5 Flash)
 
 **Gemini 2.5 Flash pricing (as of March 2026):**
-- Input: $0.15 per 1M tokens (under 200K context)
-- Output: $0.60 per 1M tokens
-- Thinking: $0.35 per 1M tokens
+- Input: **$0.30** per 1M tokens
+- Output: **$2.50** per 1M tokens
+- Thinking: **$3.50** per 1M tokens (optional, can be disabled)
 
-| Scenario | Input Tokens | Output Tokens | Cost |
-|----------|-------------|---------------|------|
-| System prompt (sent once per session) | 1,800 | 0 | $0.00027 |
-| Average user message | ~100 | 0 | $0.000015 |
-| Average AI response | 0 | ~500 | $0.0003 |
-| **Typical conversation (10 turns)** | **~2,800** | **~5,000** | **~$0.0034** |
-| **Heavy conversation (25 turns)** | **~4,300** | **~12,500** | **~$0.0082** |
+> **Note:** Output tokens are **8x more expensive** than input tokens.
+> The AI's responses (not the system prompt) drive most of the cost.
+
+| Component | Tokens | Cost per conversation |
+|-----------|--------|----------------------|
+| System prompt (input, sent with each turn) | 1,800 × 10 turns = 18,000 | $0.0054 |
+| User messages (input, 10 turns avg) | ~100 × 10 = 1,000 | $0.0003 |
+| Conversation history (input, grows each turn) | ~3,500 avg cumulative | $0.0011 |
+| **Total input per conversation** | **~22,500** | **$0.0068** |
+| AI responses (output, 10 turns avg) | ~700 × 10 = 7,000 | $0.0175 |
+| Thinking tokens (if enabled, ~2x output) | ~14,000 | $0.049 |
+| **Total output per conversation** | **~7,000 (no thinking)** | **$0.0175** |
+| | | |
+| **Total per conversation (no thinking)** | **~29,500** | **$0.024** |
+| **Total per conversation (with thinking)** | **~43,500** | **$0.073** |
 
 ### Monthly Cost Projection
 
+**Without thinking tokens (recommended for this use case):**
+
 | Usage Pattern | Conversations/Month | Monthly Cost |
 |--------------|---------------------|-------------|
-| Light (12 SAs, 2 convos/week each) | ~96 | **~$0.33** |
-| Medium (12 SAs, 5 convos/week each) | ~240 | **~$0.82** |
-| Heavy (24 SAs, 5 convos/week each) | ~480 | **~$1.63** |
+| Light (12 SAs, 2 convos/week each) | ~96 | **~$2.30** |
+| Medium (12 SAs, 5 convos/week each) | ~240 | **~$5.76** |
+| Heavy (24 SAs, 5 convos/week each) | ~480 | **~$11.52** |
 
-**Bottom line: Even heavy usage costs less than $2/month with Gemini 2.5 Flash.**
+**With thinking tokens enabled:**
 
-### Why So Cheap?
+| Usage Pattern | Conversations/Month | Monthly Cost |
+|--------------|---------------------|-------------|
+| Light | ~96 | **~$7.00** |
+| Medium | ~240 | **~$17.52** |
+| Heavy | ~480 | **~$35.04** |
 
-1. System prompt is only ~1,800 tokens (tiny)
-2. Gemini 2.5 Flash is one of the cheapest models available
-3. RBAC conversations are short — 5-15 turns, concise responses
-4. No RAG pipeline, no embeddings, no vector DB overhead
+**With Google Search grounding (adds $0.035/grounded prompt):**
+
+| Usage Pattern | Grounded Prompts/Month | Additional Cost |
+|--------------|------------------------|-----------------|
+| Light (1 grounded prompt per convo) | ~96 | +$3.36 |
+| Heavy (2 grounded prompts per convo) | ~960 | +$33.60 |
+
+> **Free tier note:** Gemini 2.5 Flash free tier gives 250 requests/day.
+> At 12 SAs × 10 messages/convo × 2 convos/day = 240 requests/day.
+> **Light/medium usage may fit entirely in the free tier.**
+
+### Recommendation: Start Without Thinking
+
+Disable thinking tokens initially. RBAC recommendations don't require deep reasoning chains — the knowledge base in the system prompt provides enough guidance. Enable thinking only if response quality is insufficient.
+
+```python
+# Disable thinking to cut costs by ~60%
+generation_config = genai.GenerationConfig(
+    thinking_config=genai.ThinkingConfig(thinking_budget=0)
+)
+```
+
+### Cost Optimization: Context Caching
+
+Gemini supports **context caching** — the system prompt (1,800 tokens) can be cached and reused across conversations at 90% discount on input cost.
+
+| Without caching | With caching |
+|----------------|-------------|
+| System prompt charged at $0.30/1M per turn | System prompt charged at $0.03/1M per turn (90% off) |
+| 18,000 tokens × $0.30/1M = $0.0054/convo | 18,000 tokens × $0.03/1M = $0.00054/convo |
+
+Saves ~$0.005 per conversation. Worth enabling but not a huge difference at this scale.
+
+---
+
+## Knowledge Source Strategy
+
+### The Problem
+
+The embedded knowledge base (`core/rbac_knowledge.py`) covers common RBAC patterns,
+but SAs will ask edge-case questions that aren't in our curated content:
+
+- *"Does LaunchDarkly support SCIM provisioning for teams?"*
+- *"Can I use role attributes with relay proxy?"*
+- *"What actions are needed for the new Guarded Releases feature?"*
+
+### Two-Layer Knowledge Architecture
+
+```
+Layer 1: Embedded Knowledge (system prompt)
+├── Always available, zero latency, zero cost
+├── Team archetypes, environment patterns, permission reference
+├── Covers 80% of conversations
+└── Updated manually when we update rbac_knowledge.py
+
+Layer 2: Google Search Grounding (on-demand)
+├── Activated when the AI needs current LD docs
+├── Searches docs.launchdarkly.com automatically
+├── Covers the remaining 20% (edge cases, new features)
+└── Costs $0.035 per grounded prompt
+```
+
+### Implementation: Grounding with Google Search
+
+Gemini supports a built-in **Google Search grounding** tool. When enabled, the model
+can automatically search the web when it needs information beyond its training data.
+
+```python
+from google.genai import types
+
+# Enable Google Search grounding
+grounding_tool = types.Tool(google_search=types.GoogleSearch())
+
+# Create model with grounding
+model = genai.GenerativeModel(
+    "gemini-2.5-flash",
+    system_instruction=system_prompt,
+    tools=[grounding_tool],
+)
+```
+
+**How it works:**
+1. SA asks: *"Does LD support SCIM for team provisioning?"*
+2. Model recognizes this isn't fully covered in the system prompt
+3. Model automatically executes a Google Search for LD SCIM docs
+4. Model synthesizes the search results into a grounded answer
+5. Response includes citations with source URLs
+
+**What we get back:**
+```python
+response.candidates[0].grounding_metadata
+# {
+#   "search_queries": ["LaunchDarkly SCIM team provisioning"],
+#   "grounding_chunks": [
+#     {"web": {"uri": "https://docs.launchdarkly.com/home/account/scim", "title": "SCIM provisioning"}}
+#   ]
+# }
+```
+
+### When to Use Each Layer
+
+| Question Type | Layer | Example |
+|--------------|-------|---------|
+| Standard role design | 1 (Embedded) | "What should devs get in prod?" |
+| Permission explanations | 1 (Embedded) | "What does Update Targeting do?" |
+| Anti-pattern detection | 1 (Embedded) | "Is it ok to give QA admin?" |
+| New LD features | 2 (Google Search) | "What permissions does Guarded Releases need?" |
+| LD platform questions | 2 (Google Search) | "Does LD support SCIM?" |
+| Integration questions | 2 (Google Search) | "How do role attributes work with Terraform?" |
+
+### Design Decision: Grounding Mode
+
+| Approach | Verdict | Reason |
+|----------|---------|--------|
+| Always-on grounding | ❌ | Adds $0.035/prompt to every message, most don't need it |
+| User-triggered ("Search LD docs") | ❌ | Adds UX friction, SA has to decide |
+| **AI-decided (dynamic tool use)** | ✅ | Model decides when to search, transparent to SA |
+
+With dynamic tool use, the model receives the Google Search tool but only invokes it
+when it determines its embedded knowledge is insufficient. Most RBAC design conversations
+won't trigger a search. Edge-case questions will.
+
+### Guardrail for Grounding
+
+Add to the system prompt:
+```
+When using Google Search, prefer results from these domains:
+- docs.launchdarkly.com (official documentation)
+- launchdarkly.com/blog (official blog)
+- apidocs.launchdarkly.com (API reference)
+
+Do NOT cite results from unofficial sources, forums, or competitor sites.
+```
 
 ---
 
