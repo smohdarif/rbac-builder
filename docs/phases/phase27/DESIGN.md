@@ -14,6 +14,7 @@
 | Phase README | [README.md](./README.md) |
 | Python Concepts | [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) |
 | **Master System Prompt** | [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) |
+| **Few-Shot Examples** | [FEW_SHOT_EXAMPLES.md](./FEW_SHOT_EXAMPLES.md) |
 | Token Budget & Cost Analysis | [SYSTEM_PROMPT.md — Token Budget](./SYSTEM_PROMPT.md#token-budget-analysis) |
 | LD Custom Roles Docs | https://docs.launchdarkly.com/home/account/custom-roles |
 | Gemini API Reference | https://ai.google.dev/gemini-api/docs |

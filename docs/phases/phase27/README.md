@@ -117,6 +117,7 @@ The AI returns both:
 |----------|-------------|
 | [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 12 test cases, implementation plan |
 | [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) | **Master system prompt** with guardrails, token budget, cost analysis, API key management |
+| [FEW_SHOT_EXAMPLES.md](./FEW_SHOT_EXAMPLES.md) | **6 grounded examples** from real customer data (sa-demo, Epassi, Voya, S2 template) — simple to complex |
 | [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | Python concepts: API clients, streaming, system prompts, JSON parsing, Streamlit chat components |
 
 ---
