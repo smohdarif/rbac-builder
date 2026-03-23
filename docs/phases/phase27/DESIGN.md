@@ -535,6 +535,72 @@ from services.ai_advisor import RBACAdvisor, AdvisorError
 ADVISOR_MESSAGES_KEY = "advisor_messages"
 ADVISOR_INSTANCE_KEY = "advisor_instance"
 ADVISOR_LAST_RECOMMENDATION_KEY = "advisor_last_recommendation"
+ADVISOR_CONTEXT_SENT_KEY = "_advisor_context_sent"
+
+
+# =============================================================================
+# LESSON: Starter Prompts — Pre-Built Use Cases
+# =============================================================================
+# SAs pick a scenario and optionally edit before sending.
+# These are based on real engagement patterns from sa-demo, Epassi,
+# Voya, and the S2 template.
+
+STARTER_PROMPTS = [
+    {
+        "label": "🏁 Standard S2 — 5 Teams, 4 Environments",
+        "prompt": (
+            "We follow the standard LaunchDarkly S2 structure. "
+            "Teams: Developer, Senior Developer, QA, Product Manager, Release Manager. "
+            "Environments: development, test, staging (all non-critical), production (critical). "
+            "We need approval workflows in production with proper separation of duties."
+        ),
+    },
+    {
+        "label": "🚀 Startup — Small Team, 2 Environments",
+        "prompt": (
+            "We're a small team with just Developers and one Admin. "
+            "Two environments: development (non-critical) and production (critical). "
+            "Developers should have full access in dev but no production access. "
+            "Admin handles everything in production."
+        ),
+    },
+    {
+        "label": "🏢 Enterprise — Dev, QA, PO, SRE with Observability",
+        "prompt": (
+            "We have 4 teams: Frontend Dev, Backend Dev, QA, and SRE. "
+            "Environments: test (non-critical) and production (critical). "
+            "Backend also manages AI configs. "
+            "SRE needs full observability access (sessions, errors, logs, traces, alerts, dashboards) "
+            "for incident response. Strict separation of duties in production."
+        ),
+    },
+    {
+        "label": "🤝 With Contractors — Internal + External Teams",
+        "prompt": (
+            "We have internal Developers and external Contractors working on the same project. "
+            "Environments: dev (non-critical) and production (critical). "
+            "Contractors should have the same productivity as developers in dev, "
+            "but limited access in production. No destructive operations for contractors."
+        ),
+    },
+    {
+        "label": "🔬 Experimentation Focus — A/B Testing Teams",
+        "prompt": (
+            "We run heavy experimentation. Teams: Developer, Data Scientist, QA, Product Manager. "
+            "Environments: test (non-critical), staging (non-critical), production (critical). "
+            "Data Scientists need to manage experiments and metrics in staging and production. "
+            "Developers create flags and configure targeting. QA validates in test."
+        ),
+    },
+    {
+        "label": "📋 Just Tell Me Best Practices",
+        "prompt": (
+            "What are the LaunchDarkly RBAC best practices for a typical engineering org? "
+            "What teams should I create, and what's the recommended permission split "
+            "between critical and non-critical environments?"
+        ),
+    },
+]
 
 
 def _get_gemini_api_key() -> str:
@@ -606,6 +672,74 @@ def _render_context_panel(context: dict) -> None:
             st.warning("No environments configured in Setup tab")
 
         st.caption("Go to the Setup tab to configure these, then come back here.")
+
+
+def _build_user_message(raw_input: str, context: dict) -> str:
+    """
+    Wrap the SA's first message with current context as a preamble.
+
+    LESSON: Context Preamble vs System Prompt
+    ==========================================
+    System prompt: guardrails, knowledge, output format (static, hidden)
+    Context preamble: customer-specific data (dynamic, per-session)
+
+    We inject context on the FIRST message only. After that, the chat
+    history carries the context forward naturally.
+    """
+    if not st.session_state.get(ADVISOR_CONTEXT_SENT_KEY):
+        parts = []
+        if context.get("project_key"):
+            parts.append(f"Project: {context['project_key']}")
+        if context.get("teams"):
+            parts.append(f"Teams: {', '.join(context['teams'])}")
+        if context.get("environments"):
+            env_strs = []
+            for e in context["environments"]:
+                crit = "critical" if e.get("critical") else "non-critical"
+                env_strs.append(f"{e['key']} ({crit})")
+            parts.append(f"Environments: {', '.join(env_strs)}")
+
+        st.session_state[ADVISOR_CONTEXT_SENT_KEY] = True
+
+        if parts:
+            preamble = "[Customer context: " + ", ".join(parts) + "]\n\n"
+            return preamble + raw_input
+
+    return raw_input
+
+
+def _render_starter_prompts() -> str | None:
+    """
+    Render clickable starter prompt buttons when chat is empty.
+    Returns the selected prompt text, or None if nothing clicked.
+
+    LESSON: Streamlit Button Columns
+    =================================
+    We use st.columns() to lay out buttons in a grid.
+    Each button returns True when clicked (for that rerun only).
+    We store the selected prompt in session_state so the chat
+    input can pick it up.
+    """
+    st.markdown("**Quick start — pick a scenario:**")
+
+    # 2 columns, 3 rows
+    for i in range(0, len(STARTER_PROMPTS), 2):
+        cols = st.columns(2)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx < len(STARTER_PROMPTS):
+                starter = STARTER_PROMPTS[idx]
+                with col:
+                    if st.button(
+                        starter["label"],
+                        key=f"starter_{idx}",
+                        use_container_width=True,
+                    ):
+                        return starter["prompt"]
+
+    st.divider()
+    st.caption("Or type your own scenario below.")
+    return None
 
 
 def _render_chat_history() -> None:
@@ -796,22 +930,35 @@ def render_advisor_tab(customer_name: str = "") -> None:
                     )
                     st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = None
 
+    # --- Starter Prompts (only shown when chat is empty) ---
+    selected_starter = None
+    if not st.session_state[ADVISOR_MESSAGES_KEY]:
+        selected_starter = _render_starter_prompts()
+
     # --- Chat Input ---
-    if user_input := st.chat_input("Describe your teams and access needs..."):
-        # Display user message
+    # Use starter prompt if one was clicked, otherwise use chat input
+    user_input = selected_starter or st.chat_input(
+        "Describe your teams and access needs..."
+    )
+
+    if user_input:
+        # Wrap with context preamble on first message
+        message_to_send = _build_user_message(user_input, context)
+
+        # Display the original user input (not the preamble)
         st.session_state[ADVISOR_MESSAGES_KEY].append(
             {"role": "user", "content": user_input}
         )
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        # Stream AI response
+        # Stream AI response (send the preamble-wrapped version)
         with st.chat_message("assistant"):
             try:
                 full_response = ""
                 placeholder = st.empty()
 
-                for chunk in advisor.stream_recommendation(user_input):
+                for chunk in advisor.stream_recommendation(message_to_send):
                     full_response += chunk
                     placeholder.markdown(full_response + "▌")
 
@@ -989,15 +1136,64 @@ FUNCTION apply_recommendation(recommendation, context):
 - SA reviews both tabs and adjusts anything before deploying
 - Defaults applied: `generation_mode = "role_attributes"`, `Critical = True` for production
 
-### 5. Chat UI Flow
+### 5. Context Preamble (first message only)
+
+```
+FUNCTION build_user_message(raw_input, context):
+
+  IF context not yet sent this session:
+    parts = []
+    IF context has project_key:  parts.append("Project: voya-web")
+    IF context has teams:        parts.append("Teams: Developer, QA, SRE")
+    IF context has environments: parts.append("Environments: test (non-critical), prod (critical)")
+
+    MARK context as sent (session_state flag)
+
+    IF parts not empty:
+      preamble = "[Customer context: " + join(parts) + "]\n\n"
+      RETURN preamble + raw_input
+
+  RETURN raw_input   # subsequent messages — no preamble
+
+# What the model sees on first message:
+#   "[Customer context: Project: voya-web, Teams: Developer, QA, SRE, Environments: test (non-critical), prod (critical)]
+#
+#    Developers need full access in test but only targeting in prod."
+#
+# What the SA sees in chat:
+#   "Developers need full access in test but only targeting in prod."
+#   (preamble is transparent — injected but not shown)
+```
+
+### 6. Starter Prompts (empty chat only)
+
+```
+FUNCTION render_starter_prompts():
+
+  # Only shown when chat history is empty
+  IF session_state.messages is not empty:
+    RETURN None
+
+  DISPLAY "Quick start — pick a scenario:"
+
+  FOR each starter in STARTER_PROMPTS (6 total):
+    DISPLAY button with starter.label
+    IF button clicked:
+      RETURN starter.prompt   # used as the user input
+
+  DISPLAY "Or type your own scenario below."
+  RETURN None
+```
+
+### 7. Chat UI Flow (updated)
 
 ```
 FUNCTION render_advisor_tab():
 
   initialize_session_state()
 
-  api_key = text_input(type=password)
-  IF no api_key: SHOW info message, RETURN
+  api_key = get_gemini_api_key()   # admin-provided, from env/secrets
+  IF no api_key: SHOW config message, RETURN
 
   context = read teams/envs/project from session_state
   render_context_panel(context)
@@ -1011,15 +1207,26 @@ FUNCTION render_advisor_tab():
 
   IF last_recommendation exists:
     SHOW "Apply to Matrix" button
-    IF clicked: apply_recommendation_to_matrix(rec)
+    IF clicked: apply_recommendation(rec, context)  # populates Setup + Matrix
 
-  IF user_input from chat_input:
-    APPEND to history
-    DISPLAY user message
+  # ── Starter prompts (only when chat is empty) ──
+  selected_starter = None
+  IF chat history is empty:
+    selected_starter = render_starter_prompts()
+
+  # ── Chat input (starter takes priority if clicked) ──
+  user_input = selected_starter OR st.chat_input("Describe your teams...")
+
+  IF user_input:
+    # Wrap first message with context preamble (transparent to SA)
+    message_to_send = build_user_message(user_input, context)
+
+    APPEND user_input to history (display version, no preamble)
+    DISPLAY user_input in chat bubble
 
     WITH assistant chat bubble:
       full_response = ""
-      FOR each chunk in advisor.stream_recommendation(user_input):
+      FOR each chunk in advisor.stream_recommendation(message_to_send):
         full_response += chunk
         UPDATE placeholder with full_response + cursor
 
@@ -1029,7 +1236,7 @@ FUNCTION render_advisor_tab():
       recommendation = parse_recommendation(full_response)
       IF recommendation exists:
         session_state.last_recommendation = recommendation
-        RERUN (to show Apply button)
+        RERUN (to show Apply button, hide starter prompts)
 ```
 
 ---
