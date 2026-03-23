@@ -764,7 +764,7 @@ def _render_delivery_options(customer_name: str) -> None:
     slug = customer_name.lower().replace(" ", "_")
     project_key = st.session_state.get("project", "")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.markdown("**📥 LD Payloads JSON**")
@@ -806,6 +806,22 @@ def _render_delivery_options(customer_name: str) -> None:
             )
         except Exception as e:
             st.error(f"Could not generate package: {e}")
+
+    with col4:
+        st.markdown("**🏗️ Terraform**")
+        st.caption("`.tf` files for `terraform apply`. Inline resources — standalone, no module dependencies.")
+        try:
+            from services import TerraformGenerator
+            tf_bytes = TerraformGenerator(ld_payload, project_key).generate_package()
+            st.download_button(
+                label="Download Terraform",
+                data=tf_bytes,
+                file_name=f"{slug}_terraform.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Could not generate Terraform: {e}")
 
     # Payload preview (collapsed — available but not in the way)
     with st.expander("🔍 Preview Payload", expanded=False):

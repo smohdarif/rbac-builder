@@ -101,6 +101,7 @@ from .deployer import (
 
 from .doc_generator import generate_deployment_guide
 from .package_generator import PackageGenerator, PackageGenerationError
+from .terraform_generator import TerraformGenerator, TerraformGenerationError
 
 # =============================================================================
 # LESSON 41: Exporting Exceptions
