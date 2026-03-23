@@ -615,23 +615,85 @@ def _render_chat_history() -> None:
             st.markdown(msg["content"])
 
 
-def _apply_recommendation_to_matrix(recommendation: dict) -> bool:
+def _apply_recommendation(recommendation: dict, context: dict) -> bool:
     """
-    Write the AI's recommendation to project_matrix and env_matrix
-    in session_state.
+    Write the AI's recommendation to BOTH Setup and Matrix in session_state.
+
+    LESSON: Two-Phase Apply
+    ========================
+    Phase A — Populate Setup (Step 1):
+      If teams/envs/project aren't configured yet, create them from the
+      recommendation's team names and environment keys. This lets SAs start
+      on the Advisor tab without configuring Setup first.
+
+    Phase B — Populate Matrix (Step 2):
+      Write project_matrix and env_matrix DataFrames from the recommendation.
 
     Returns True if applied successfully.
     """
     try:
-        teams_df = st.session_state.get("teams", pd.DataFrame())
-        env_df = st.session_state.get("env_groups", pd.DataFrame())
-
-        if teams_df.empty or env_df.empty:
-            st.error("Setup tab must have teams and environments configured first.")
-            return False
-
         project_rec = recommendation.get("project", {})
         env_rec = recommendation.get("environment", {})
+
+        # =============================================================
+        # Phase A: Populate Setup tab if not already configured
+        # =============================================================
+
+        # Teams — derive from recommendation keys
+        teams_df = st.session_state.get("teams", pd.DataFrame())
+        rec_team_names = list(project_rec.keys())
+
+        if teams_df.empty or set(teams_df["Name"].tolist()) != set(rec_team_names):
+            # Build teams DataFrame from recommendation team names
+            st.session_state.teams = pd.DataFrame({
+                "Key": [name.lower().replace(" ", "-") for name in rec_team_names],
+                "Name": rec_team_names,
+                "Description": ["" for _ in rec_team_names],
+            })
+            teams_df = st.session_state.teams
+
+        # Environments — derive from recommendation env keys
+        env_df = st.session_state.get("env_groups", pd.DataFrame())
+        rec_env_keys = set()
+        for team_envs in env_rec.values():
+            rec_env_keys.update(team_envs.keys())
+        rec_env_keys = sorted(rec_env_keys)
+
+        if env_df.empty or set(env_df["Key"].tolist()) != set(rec_env_keys):
+            # Build env_groups DataFrame from recommendation env keys
+            # Use context hints for critical flag, default production=critical
+            env_rows = []
+            for env_key in rec_env_keys:
+                # Infer critical from context or naming convention
+                is_critical = any([
+                    env_key.lower() in ("production", "prod"),
+                    any(
+                        e.get("key") == env_key and e.get("critical", False)
+                        for e in context.get("environments", [])
+                    ),
+                ])
+                env_rows.append({
+                    "Key": env_key,
+                    "Requires Approvals": is_critical,
+                    "Critical": is_critical,
+                    "Notes": "",
+                })
+            st.session_state.env_groups = pd.DataFrame(env_rows)
+            env_df = st.session_state.env_groups
+
+        # Project key — use context if available
+        if not st.session_state.get("project") and context.get("project_key"):
+            st.session_state.project = context["project_key"]
+
+        # Generation mode — default to role_attributes
+        if "generation_mode" not in st.session_state:
+            st.session_state.generation_mode = "role_attributes"
+
+        # =============================================================
+        # Phase B: Populate Matrix tab (same as before)
+        # =============================================================
+
+        team_names = teams_df["Name"].tolist()
 
         # Build project matrix from recommendation
         team_names = teams_df["Name"].tolist()
@@ -726,8 +788,12 @@ def render_advisor_tab(customer_name: str = "") -> None:
         col1, col2 = st.columns([1, 3])
         with col1:
             if st.button("📋 Apply to Matrix", type="primary"):
-                if _apply_recommendation_to_matrix(last_rec):
-                    st.success("Recommendation applied! Switch to the Matrix tab to review.")
+                if _apply_recommendation(last_rec, context):
+                    st.success(
+                        "Recommendation applied! "
+                        "Check the **Setup** tab (teams & environments) "
+                        "and **Design Matrix** tab (permissions)."
+                    )
                     st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = None
 
     # --- Chat Input ---
@@ -853,37 +919,75 @@ FUNCTION parse_recommendation(response_text):
     RETURN None
 ```
 
-### 4. Applying Recommendation to Matrix
+### 4. Applying Recommendation — Setup + Matrix
 
 ```
-FUNCTION apply_recommendation_to_matrix(recommendation):
+FUNCTION apply_recommendation(recommendation, context):
 
-  teams = session_state.teams     (from Setup tab)
-  envs  = session_state.env_groups (from Setup tab)
+  project_rec = recommendation["project"]
+  env_rec     = recommendation["environment"]
 
-  IF teams or envs empty:
-    SHOW error "Configure Setup first"
-    RETURN False
+  # ── PHASE A: Populate Setup tab (Step 1) ──────────────────────
+
+  # Teams — derive from recommendation keys if not configured
+  rec_team_names = keys of project_rec   # e.g. ["Developer", "QA", "SRE"]
+
+  IF session_state.teams is empty OR team names don't match:
+    session_state.teams = DataFrame({
+      Key:         slugify each team name  (e.g. "developer", "qa", "sre")
+      Name:        rec_team_names
+      Description: empty strings (SA can fill in later)
+    })
+
+  # Environments — derive from recommendation env keys if not configured
+  rec_env_keys = collect all env keys from env_rec  # e.g. ["test", "production"]
+
+  IF session_state.env_groups is empty OR env keys don't match:
+    FOR each env_key:
+      is_critical = env_key contains "prod" OR context says it's critical
+    session_state.env_groups = DataFrame({
+      Key:                rec_env_keys
+      Requires Approvals: is_critical for each
+      Critical:           is_critical for each
+      Notes:              empty strings
+    })
+
+  # Project key — use context if available
+  IF session_state.project is empty AND context has project_key:
+    session_state.project = context["project_key"]
+
+  # Generation mode — default to role_attributes
+  IF generation_mode not set:
+    session_state.generation_mode = "role_attributes"
+
+  # ── PHASE B: Populate Matrix tab (Step 2) ─────────────────────
 
   # Build project matrix DataFrame
-  project_rec = recommendation["project"]
-  FOR each team in teams:
-    FOR each permission:
+  team_names = session_state.teams["Name"]
+  FOR each team in team_names:
+    FOR each permission in project_rec:
       value = project_rec.get(team, {}).get(permission, False)
 
   session_state.project_matrix = DataFrame(project_data)
 
   # Build env matrix DataFrame
-  env_rec = recommendation["environment"]
-  FOR each team in teams:
-    FOR each environment in envs:
-      FOR each permission:
+  env_keys = session_state.env_groups["Key"]
+  FOR each team in team_names:
+    FOR each env_key in env_keys:
+      FOR each permission in env_rec:
         value = env_rec.get(team, {}).get(env_key, {}).get(permission, False)
 
   session_state.env_matrix = DataFrame(env_rows)
 
   RETURN True
 ```
+
+**What this means for the SA:**
+- SA can start on the Advisor tab with ZERO setup — just chat
+- Click "Apply" → Setup tab gets teams + environments auto-populated
+- Matrix tab gets permissions pre-filled from the recommendation
+- SA reviews both tabs and adjusts anything before deploying
+- Defaults applied: `generation_mode = "role_attributes"`, `Critical = True` for production
 
 ### 5. Chat UI Flow
 
@@ -1072,7 +1176,7 @@ THEN:  raises AdvisorError("Context not set...")
 | 9 | Create `_get_context_from_setup()` | `ui/advisor_tab.py` |
 | 10 | Create `_render_context_panel()` | `ui/advisor_tab.py` |
 | 11 | Create `_render_chat_history()` | `ui/advisor_tab.py` |
-| 12 | Create `_apply_recommendation_to_matrix()` | `ui/advisor_tab.py` |
+| 12 | Create `_apply_recommendation()` | `ui/advisor_tab.py` |
 | 13 | Create `render_advisor_tab()` | `ui/advisor_tab.py` |
 | 14 | Export from `ui/__init__.py` | `ui/__init__.py` |
 | 15 | Add Tab 5 to `app.py` | `app.py` |
