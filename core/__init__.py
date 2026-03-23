@@ -28,6 +28,13 @@ from .environment import (
     ENVIRONMENT_INFO,
 )
 
+from .session_tracker import (
+    heartbeat,
+    get_active_count,
+    get_active_sessions,
+    SESSION_TIMEOUT_SECONDS,
+)
+
 from .ld_actions import (
     ProjectAction,
     EnvironmentAction,
@@ -44,6 +51,11 @@ from .ld_actions import (
 )
 
 __all__ = [
+    # Session tracking
+    "heartbeat",
+    "get_active_count",
+    "get_active_sessions",
+    "SESSION_TIMEOUT_SECONDS",
     # Environment detection
     "RuntimeEnvironment",
     "EnvironmentInfo",

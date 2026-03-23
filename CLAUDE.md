@@ -179,12 +179,17 @@ Each DESIGN.md must include:
 5. **Pseudo Logic**
    - Step-by-step pseudo code for each major function
    - Integration examples with other components
-6. **Implementation Plan**
+6. **Test Cases**
+   - Grouped by feature area (e.g., Group 1: Core Logic, Group 2: Edge Cases)
+   - Each test case must have: ID (e.g., TC-XX-01), GIVEN/WHEN/THEN format
+   - Cover: happy path, edge cases, error handling, integration
+   - Specify the test file name (e.g., `tests/test_feature.py`)
+7. **Implementation Plan**
    - Step-by-step implementation order
    - Python concepts table
    - Estimated lessons list
-7. **Learning Resources** section with links
-8. **Navigation** footer
+8. **Learning Resources** section with links
+9. **Navigation** footer
 
 ### PYTHON_CONCEPTS.md Structure
 
@@ -287,6 +292,22 @@ pytest tests/ --cov=. --cov-report=html
 | 8 | `ui/deploy_tab.py` | Complete deploy UI | [📄 Phase 8](docs/phases/phase8/) | ✅ `test_deploy_ui.py` |
 | 9 | `app.py` | Wire everything together | 📋 Planned | 📋 Planned |
 | 10 | `tests/` | Testing & Polish | 📋 Planned | 📋 Planned |
+| 11 | `core/ld_actions.py` | Role Attribute Pattern | [📄 Phase 11](docs/phases/phase11/) | ✅ |
+| 12 | `core/ld_actions.py` | Resource Builders | [📄 Phase 12](docs/phases/phase12/) | ✅ |
+| 13 | `services/package_generator.py` | Delivery ZIP | [📄 Phase 13](docs/phases/phase13/) | ✅ |
+| 14 | `core/ld_actions.py` | Observability Permissions | [📄 Phase 14](docs/phases/phase14/) | 📋 Planned |
+| 15 | `ui/matrix_tab.py` | Tabbed Permission Groups | [📄 Phase 15](docs/phases/phase15/) | 📋 Planned |
+| 16 | `services/terraform_generator.py` | Terraform Export | [📄 Phase 16](docs/phases/phase16/) | ✅ `test_terraform_generator.py` |
+| 17 | `core/ld_actions.py` | Global Account Roles | [📄 Phase 17](docs/phases/phase17/) | 📋 Planned |
+| 18 | `core/ld_actions.py` | Views Permissions | [📄 Phase 18](docs/phases/phase18/) | 📋 Planned |
+| 19 | `ui/matrix_tab.py` | Manage Context Kinds | [📄 Phase 19](docs/phases/phase19/) | 📋 Planned |
+| 20 | `services/payload_builder.py` | Deny Lists & Exclusions | [📄 Phase 20](docs/phases/phase20/) | 📋 Planned |
+| 21 | `services/payload_builder.py` | Visible Teams Attribute | [📄 Phase 21](docs/phases/phase21/) | 📋 Planned |
+| 22 | `ui/matrix_tab.py` | Admin/Destructive Actions | [📄 Phase 22](docs/phases/phase22/) | 📋 Planned |
+| 23 | `services/payload_builder.py` | Tag-Based Env Filtering | [📄 Phase 23](docs/phases/phase23/) | 📋 Planned |
+| 24 | `services/payload_builder.py` | Flag/Segment Subset Scoping | [📄 Phase 24](docs/phases/phase24/) | 📋 Planned |
+| 25 | `core/ld_actions.py` | Account-Level Admin Roles | [📄 Phase 25](docs/phases/phase25/) | 📋 Planned |
+| 26 | `core/session_tracker.py` | Active User Counter | [📄 Phase 26](docs/phases/phase26/) | 📋 Planned |
 
 ## Running the App
 

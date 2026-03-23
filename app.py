@@ -26,6 +26,7 @@ import streamlit as st
 # This app works on both localhost AND Streamlit Cloud.
 # We detect the environment and show appropriate warnings.
 from core import get_storage_warning, is_streamlit_cloud
+from core.session_tracker import heartbeat, get_active_count
 
 # =============================================================================
 # LESSON: UI Module Imports
@@ -49,6 +50,13 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# =============================================================================
+# LESSON: Session Heartbeat — Register This User as Active
+# =============================================================================
+# Must be called early (before sidebar renders) so the count is accurate.
+# Every rerun (widget click) refreshes the heartbeat timestamp.
+heartbeat()
 
 # =============================================================================
 # HEADER
@@ -94,6 +102,14 @@ with st.sidebar:
         "customer": customer_name or "(not set)",
         "mode": mode
     })
+
+    # =================================================================
+    # LESSON: Active User Count — shared across all sessions
+    # =================================================================
+    # get_active_count() reads the shared dict (via cache_resource),
+    # cleans up stale sessions, and returns how many are active.
+    st.divider()
+    st.metric(label="Active Users", value=get_active_count())
 
 # =============================================================================
 # MAIN TABS
