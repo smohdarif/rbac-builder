@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | 27 |
-| **Status** | 📋 Design Complete — Ready for Implementation |
+| **Status** | ✅ Implemented |
 | **Priority** | 🔴 High |
 | **Goal** | Add an AI chat tab where SAs describe their customer's team structure and get RBAC best-practice recommendations before building the matrix |
 | **Depends on** | Phase 15 (Tabbed Permission Groups — for structured output), Phase 5 (UI module pattern) |
@@ -18,7 +18,7 @@ Today, the SA needs to already know LaunchDarkly RBAC best practices, the princi
 
 ## The Solution
 
-A new **Tab 5: RBAC Advisor** where the SA has a chat conversation with an AI that:
+A new **Tab 5: Role Designer AI** where the SA has a chat conversation with an AI that:
 
 1. **Understands** the customer's team structure, environments, and goals
 2. **Recommends** a concrete permission matrix based on LD RBAC best practices
@@ -84,7 +84,7 @@ The SA goes from *"I think dev should have targeting in test?"* to *"The AI reco
 
 | Option | Verdict | Reason |
 |--------|---------|--------|
-| Gemini (google-generativeai) | ✅ Chosen | User has API keys, generous free tier, good for structured output |
+| Gemini (`google-genai` new SDK) | ✅ Chosen | User has API keys, generous free tier, good for structured output |
 | Claude (anthropic) | ❌ | Potential conflict of interest (we ARE Claude building this) |
 | OpenAI (openai) | ❌ | User didn't mention, extra cost |
 
@@ -115,7 +115,7 @@ The AI returns both:
 
 | Document | Description |
 |----------|-------------|
-| [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 12 test cases, implementation plan |
+| [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 20 test cases, implementation plan |
 | [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) | **Master system prompt** with guardrails, token budget, cost analysis, API key management |
 | [FEW_SHOT_EXAMPLES.md](./FEW_SHOT_EXAMPLES.md) | **6 grounded examples** from real customer data (sa-demo, Epassi, Voya, S2 template) — simple to complex |
 | [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | Python concepts: API clients, streaming, system prompts, JSON parsing, Streamlit chat components |
@@ -126,14 +126,14 @@ The AI returns both:
 
 | File | Action |
 |------|--------|
-| `services/ai_advisor.py` | CREATE — `RBACAdvisor` class (Gemini client, system prompt, structured output) |
-| `core/rbac_knowledge.py` | CREATE — Embedded RBAC best practices knowledge base |
-| `ui/advisor_tab.py` | CREATE — Tab 5 chat UI with context panel |
-| `ui/__init__.py` | ADD `render_advisor_tab` export |
-| `app.py` | ADD Tab 5 |
+| `services/ai_advisor.py` | CREATED — `RBACAdvisor` class (Gemini client via `google.genai`, system prompt, structured output) |
+| `core/rbac_knowledge.py` | CREATED — Embedded RBAC best practices knowledge base |
+| `ui/advisor_tab.py` | CREATED — Tab 5 "Role Designer AI" chat UI with context panel, versioned widget keys, thinking indicator, collapsible JSON |
+| `ui/__init__.py` | UPDATED — Added `render_advisor_tab` export |
+| `app.py` | UPDATED — Added Tab 5 |
 | `.streamlit/secrets.toml` | ADD `GEMINI_API_KEY` (not committed to git) |
-| `requirements.txt` | ADD `google-generativeai>=0.8.0` |
-| `tests/test_ai_advisor.py` | CREATE — 12 test cases |
+| `requirements.txt` | UPDATED — Added `google-genai>=1.0.0` |
+| `tests/test_ai_advisor.py` | CREATED — 20 test cases |
 
 ---
 
@@ -141,11 +141,39 @@ The AI returns both:
 
 - [x] DESIGN.md complete
 - [x] PYTHON_CONCEPTS.md complete
-- [ ] `core/rbac_knowledge.py` created — embedded LD RBAC knowledge
-- [ ] `services/ai_advisor.py` created — Gemini integration + structured output
-- [ ] `ui/advisor_tab.py` created — chat UI + context panel + apply button
-- [ ] `ui/__init__.py` updated
-- [ ] `app.py` updated — Tab 5 + API key input
-- [ ] `requirements.txt` updated
-- [ ] `tests/test_ai_advisor.py` created — all 12 tests passing
-- [ ] Manual test: full conversation → apply to matrix → verify matrix populated
+- [x] `core/rbac_knowledge.py` created — embedded LD RBAC knowledge
+- [x] `services/ai_advisor.py` created — Gemini integration via `google.genai` SDK + structured output
+- [x] `ui/advisor_tab.py` created — chat UI + context panel + apply button + versioned widget keys + thinking indicator + collapsible JSON
+- [x] `ui/__init__.py` updated
+- [x] `app.py` updated — Tab 5 "Role Designer AI"
+- [x] `requirements.txt` updated — `google-genai>=1.0.0`
+- [x] `tests/test_ai_advisor.py` created — all 20 tests passing
+- [x] Manual test: full conversation → apply to matrix → verify matrix populated
+
+---
+
+## Known Issues / Lessons Learned
+
+### Streamlit Widget Caching (Biggest Challenge)
+
+Streamlit caches widget values by key. When the Advisor's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), Streamlit's checkbox widgets in the Matrix tab still hold their old `False` values from the previous render. The DataFrame data is correct, but the widgets override it on the next rerun.
+
+**Fix: Version-based widget keys.** Each time Apply runs, a version counter increments in `session_state`. Widget keys include this version (e.g., `key_prefix=f"proj_v{version}_{group}"`), forcing Streamlit to create fresh widgets that read from the updated DataFrame instead of using cached values.
+
+The same issue affected `st.data_editor` widgets for teams and `env_groups` in the Setup tab. Fix: versioned keys like `key=f"teams_editor_v{version}"`.
+
+### env_groups Stale Data
+
+The Setup tab's `data_editor` restores old default `env_groups` (e.g., Test, Production) even after the Advisor writes 4 environments. Fix: The Matrix tab reads environment keys directly from `env_matrix` when the `_advisor_applied` flag is `True`, bypassing the stale `env_groups` data.
+
+### st.secrets Crash on Missing secrets.toml
+
+`"GEMINI_API_KEY" in st.secrets` raises `StreamlitSecretNotFoundError` when no `secrets.toml` file exists. Fix: wrap the check in `try/except` and use `st.secrets.get()`.
+
+### API Timeout on First Call
+
+The first Gemini call with a large system prompt can timeout. Fix: set `http_options={"timeout": 120_000}` (120 seconds) on the client.
+
+### Two-Phase Apply with _advisor_applied Flag
+
+The Matrix tab checks the `_advisor_applied` flag to skip its normal stale-data sync logic and trust the Advisor's data directly. The success banner persists across `st.rerun()` via a session_state flag.

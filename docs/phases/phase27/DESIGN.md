@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | 27 |
-| **Status** | 📋 Design Complete — Ready for Implementation |
+| **Status** | ✅ Implemented |
 | **Goal** | AI-powered chat tab that recommends RBAC configurations based on team descriptions and LD best practices |
 | **Dependencies** | Phase 5 (UI module pattern) |
 
@@ -373,7 +373,8 @@ import json
 import re
 from typing import Generator, Optional
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from core.rbac_knowledge import build_system_prompt
 from core.ld_actions import (
@@ -390,6 +391,11 @@ class AdvisorError(Exception):
 class RBACAdvisor:
     """
     Manages conversations with Gemini for RBAC recommendations.
+
+    Uses the new google.genai SDK (not the deprecated google.generativeai).
+    Client pattern: genai.Client(api_key=...) instead of genai.configure().
+    Chat pattern: client.chats.create() instead of model.start_chat().
+    Streaming: chat.send_message_stream() instead of chat.send_message(stream=True).
 
     Usage:
         advisor = RBACAdvisor(api_key="gemini-key-here")
@@ -410,9 +416,12 @@ class RBACAdvisor:
         if not api_key or not api_key.strip():
             raise AdvisorError("Gemini API key is required")
 
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(self.MODEL_NAME)
-        self.chat: Optional[genai.ChatSession] = None
+        # New SDK: client pattern instead of genai.configure()
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options={"timeout": 120_000},  # 120s timeout for large system prompts
+        )
+        self.chat = None
         self.system_prompt: str = ""
 
     def set_context(
@@ -437,23 +446,17 @@ class RBACAdvisor:
             available_env_permissions=get_all_env_permissions(),
         )
 
+        # New SDK: client.chats.create() instead of model.start_chat()
         # Google Search grounding — model searches LD docs when needed
-        from google.genai import types
         grounding_tool = types.Tool(google_search=types.GoogleSearch())
 
-        # Start a new chat with system instruction + search tool
-        self.model = genai.GenerativeModel(
-            self.MODEL_NAME,
-            system_instruction=self.system_prompt,
-            tools=[grounding_tool],
+        self.chat = self.client.chats.create(
+            model=self.MODEL_NAME,
+            config=types.GenerateContentConfig(
+                system_instruction=self.system_prompt,
+                tools=[grounding_tool],
+            ),
         )
-
-        # Disable thinking tokens to keep costs low
-        self.generation_config = genai.GenerationConfig(
-            thinking_config=genai.ThinkingConfig(thinking_budget=0)
-        )
-
-        self.chat = self.model.start_chat(history=[])
 
     def stream_recommendation(
         self, user_message: str
@@ -470,10 +473,8 @@ class RBACAdvisor:
             )
 
         try:
-            response = self.chat.send_message(
-                user_message,
-                stream=True,
-            )
+            # New SDK: send_message_stream() instead of send_message(stream=True)
+            response = self.chat.send_message_stream(user_message)
             for chunk in response:
                 if chunk.text:
                     yield chunk.text
@@ -607,10 +608,17 @@ def _get_gemini_api_key() -> str:
     """
     Get the Gemini API key from Streamlit secrets or environment variable.
     Admin-provided — SAs do NOT enter their own key.
+
+    GOTCHA: "GEMINI_API_KEY" in st.secrets raises StreamlitSecretNotFoundError
+    when no secrets.toml file exists. Must wrap in try/except.
     """
     # Streamlit Cloud: secrets management (.streamlit/secrets.toml)
-    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-        return st.secrets["GEMINI_API_KEY"]
+    try:
+        key = st.secrets.get("GEMINI_API_KEY", "")
+        if key:
+            return key
+    except Exception:
+        pass  # No secrets.toml — fall through to env var
 
     # Localhost: environment variable
     import os
@@ -881,10 +889,10 @@ def render_advisor_tab(customer_name: str = "") -> None:
     """
     _initialize_session_state()
 
-    st.header("🤖 RBAC Advisor")
+    st.header("🤖 Role Designer AI")
     st.markdown(
-        "Describe your teams and access needs. "
-        "The AI will recommend a permission matrix based on LaunchDarkly best practices."
+        "Describe your teams and access needs — "
+        "get an instant RBAC blueprint powered by AI."
     )
 
     # --- API Key (admin-provided, not SA-entered) ---
@@ -917,18 +925,27 @@ def render_advisor_tab(customer_name: str = "") -> None:
     _render_chat_history()
 
     # --- Apply Button (if recommendation available) ---
+    # Success banner persistence — survives st.rerun() via session_state flag
+    if st.session_state.get("_advisor_apply_success"):
+        st.success(
+            "Recommendation applied! "
+            "Check the **Setup** tab (teams & environments) "
+            "and **Design Matrix** tab (permissions)."
+        )
+        st.session_state["_advisor_apply_success"] = False
+
     last_rec = st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY]
     if last_rec is not None:
         col1, col2 = st.columns([1, 3])
         with col1:
             if st.button("📋 Apply to Matrix", type="primary"):
                 if _apply_recommendation(last_rec, context):
-                    st.success(
-                        "Recommendation applied! "
-                        "Check the **Setup** tab (teams & environments) "
-                        "and **Design Matrix** tab (permissions)."
-                    )
+                    # Set _advisor_applied flag — Matrix tab checks this
+                    # to skip stale env_groups sync and trust Advisor's data
+                    st.session_state["_advisor_applied"] = True
+                    st.session_state["_advisor_apply_success"] = True
                     st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = None
+                    st.rerun()  # success message shown on next rerun
 
     # --- Starter Prompts (only shown when chat is empty) ---
     selected_starter = None
@@ -958,10 +975,16 @@ def render_advisor_tab(customer_name: str = "") -> None:
                 full_response = ""
                 placeholder = st.empty()
 
+                # Thinking indicator — show while waiting for first chunk
+                placeholder.markdown("*Thinking...*")
+
                 for chunk in advisor.stream_recommendation(message_to_send):
                     full_response += chunk
                     placeholder.markdown(full_response + "▌")
 
+                # Final render — collapsible JSON blocks
+                # If response contains ```json blocks, render explanation as
+                # markdown and JSON inside an expander ("View JSON Recommendation")
                 placeholder.markdown(full_response)
 
                 # Save to history
@@ -973,6 +996,8 @@ def render_advisor_tab(customer_name: str = "") -> None:
                 recommendation = RBACAdvisor.parse_recommendation(full_response)
                 if recommendation:
                     st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = recommendation
+                    # Set _advisor_applied flag — Matrix tab checks this
+                    # to skip stale sync and trust Advisor's data
                     st.rerun()
 
             except AdvisorError as e:
@@ -991,7 +1016,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 2. Design Matrix",
     "🚀 3. Deploy",
     "📚 4. Reference Guide",
-    "🤖 5. RBAC Advisor",
+    "🤖 5. Role Designer AI",
 ])
 
 # Add tab5 block
@@ -1002,7 +1027,7 @@ with tab5:
 ### 5. `requirements.txt` Addition
 
 ```
-google-generativeai>=0.8.0
+google-genai>=1.0.0
 ```
 
 ---
@@ -1241,12 +1266,57 @@ FUNCTION render_advisor_tab():
 
 ---
 
+## Streamlit Widget Caching Workaround
+
+The biggest implementation challenge was Streamlit's widget value caching. When the Advisor's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), Streamlit's checkbox widgets in the Matrix tab still hold their old `False` values from a previous render. The DataFrame data is correct in `session_state`, but widgets override it on the next rerun because Streamlit caches widget values by key.
+
+### The Fix: Version-Based Widget Keys
+
+Each time Apply runs, a version counter increments in `session_state`:
+
+```python
+# In _apply_recommendation():
+st.session_state["_widget_version"] = st.session_state.get("_widget_version", 0) + 1
+
+# In matrix_tab.py — checkbox widgets include the version:
+version = st.session_state.get("_widget_version", 0)
+key = f"proj_v{version}_{group}_{team}_{perm}"
+st.checkbox(perm, value=df_value, key=key)
+```
+
+When the version changes, Streamlit sees new keys and creates fresh widgets that read from the updated DataFrame. Old keys are abandoned.
+
+### Same Fix for data_editor Widgets
+
+The Setup tab's `st.data_editor` for teams and `env_groups` had the same caching problem:
+
+```python
+version = st.session_state.get("_widget_version", 0)
+st.data_editor(teams_df, key=f"teams_editor_v{version}")
+st.data_editor(env_groups_df, key=f"env_groups_editor_v{version}")
+```
+
+### env_groups Stale Data Bypass
+
+Even with versioned keys, the Setup tab's `data_editor` would restore default `env_groups` (Test, Production) after Apply wrote 4 environments. The Matrix tab now reads environment keys directly from `env_matrix` when `_advisor_applied` is `True`:
+
+```python
+if st.session_state.get("_advisor_applied"):
+    # Trust Advisor's data — bypass stale env_groups
+    env_keys = st.session_state.env_matrix["Environment"].unique().tolist()
+else:
+    env_keys = st.session_state.env_groups["Key"].tolist()
+```
+
+---
+
 ## Test Cases
 
 **Test file:** `tests/test_ai_advisor.py`
 
 > **Note:** Tests mock the Gemini API — we test prompt building, response parsing,
 > matrix application, and error handling without making real API calls.
+> **20 tests total** (expanded from the original 12 design spec).
 
 ### Group 1: Knowledge Base & Prompt Building
 
@@ -1387,8 +1457,8 @@ THEN:  raises AdvisorError("Context not set...")
 | 13 | Create `render_advisor_tab()` | `ui/advisor_tab.py` |
 | 14 | Export from `ui/__init__.py` | `ui/__init__.py` |
 | 15 | Add Tab 5 to `app.py` | `app.py` |
-| 16 | Add `google-generativeai` to `requirements.txt` | `requirements.txt` |
-| 17 | Write all 12 tests | `tests/test_ai_advisor.py` |
+| 16 | Add `google-genai>=1.0.0` to `requirements.txt` | `requirements.txt` |
+| 17 | Write all 20 tests | `tests/test_ai_advisor.py` |
 | 18 | Run full test suite | `pytest tests/ -v` |
 
 ### Python Concepts in This Phase

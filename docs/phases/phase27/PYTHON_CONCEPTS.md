@@ -12,7 +12,8 @@ Concepts introduced when building an AI-powered chat advisor with Gemini integra
 4. [Streamlit Chat Components — `st.chat_message` and `st.chat_input`](#4-streamlit-chat-components--stchat_message-and-stchat_input)
 5. [Live Streaming UI with `st.empty()`](#5-live-streaming-ui-with-stempty)
 6. [API Client Pattern — Configuration, Sessions, Error Handling](#6-api-client-pattern--configuration-sessions-error-handling)
-7. [Quick Reference Card](#quick-reference-card)
+7. [Streamlit Widget Key Versioning — Solving the Caching Bug](#7-streamlit-widget-key-versioning--solving-the-caching-bug)
+8. [Quick Reference Card](#quick-reference-card)
 
 ---
 
@@ -61,7 +62,8 @@ for num in count_up_to(3):
 ```python
 def stream_recommendation(self, user_message: str) -> Generator[str, None, None]:
     """Yield response chunks as they arrive from Gemini."""
-    response = self.chat.send_message(user_message, stream=True)
+    # New SDK: send_message_stream() instead of send_message(stream=True)
+    response = self.chat.send_message_stream(user_message)
     for chunk in response:
         if chunk.text:
             yield chunk.text
@@ -177,13 +179,19 @@ re.findall(r"```json\s*(.*?)\s*```", text, re.DOTALL)  # ['{\n  "key": true\n}']
 ```python
 # SYSTEM PROMPT: Sets the AI's persona and rules (sent once)
 # Think of it as the AI's "job description"
-model = genai.GenerativeModel(
-    "gemini-2.5-flash",
-    system_instruction="You are an RBAC advisor. Always recommend least privilege..."
+# New SDK: system_instruction goes in GenerateContentConfig, not model constructor
+from google import genai
+from google.genai import types
+
+client = genai.Client(api_key=api_key)
+chat = client.chats.create(
+    model="gemini-2.5-flash",
+    config=types.GenerateContentConfig(
+        system_instruction="You are an RBAC advisor. Always recommend least privilege..."
+    ),
 )
 
 # USER MESSAGE: The conversation (sent with each turn)
-chat = model.start_chat()
 response = chat.send_message("What should my dev team get?")
 ```
 
@@ -378,30 +386,40 @@ for chunk in chunks:
 
 ### The pattern
 
+**Important:** We use `google.genai` (new SDK), not `google.generativeai` (deprecated).
+The key differences:
+- Client: `genai.Client(api_key=...)` instead of `genai.configure()`
+- Chat: `client.chats.create()` instead of `model.start_chat()`
+- Streaming: `chat.send_message_stream()` instead of `chat.send_message(stream=True)`
+
 ```python
+from google import genai
+from google.genai import types
+
 class RBACAdvisor:
     def __init__(self, api_key: str):
         # 1. Validate inputs early
         if not api_key:
             raise AdvisorError("API key required")
 
-        # 2. Configure the library
-        genai.configure(api_key=api_key)
+        # 2. Create client (new SDK pattern — replaces genai.configure())
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options={"timeout": 120_000},  # 120s for first call with large system prompt
+        )
 
-        # 3. Create the model instance
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
-
-        # 4. Chat session (created later with context)
+        # 3. Chat session (created later with context)
         self.chat = None
 
     def set_context(self, teams, envs, project_key):
-        # 5. Reinitialize model with system prompt
-        self.model = genai.GenerativeModel(
-            "gemini-2.5-flash",
-            system_instruction=build_system_prompt(...)
+        # 4. Create chat with system prompt (replaces model.start_chat())
+        self.chat = self.client.chats.create(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=build_system_prompt(...),
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
         )
-        # 6. Start fresh chat session
-        self.chat = self.model.start_chat(history=[])
 ```
 
 ### Error wrapping
@@ -437,12 +455,69 @@ except ValueError as e:
 
 ---
 
+## 7. Streamlit Widget Key Versioning — Solving the Caching Bug
+
+### The problem
+
+This was the biggest challenge in Phase 27. Streamlit caches widget values by their `key`. When the Advisor's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), the checkbox widgets in the Matrix tab still hold their old `False` values from a previous render.
+
+```python
+# BAD — widget key is static. Streamlit returns the CACHED value (False),
+# ignoring the updated DataFrame value (True).
+st.checkbox(perm, value=df_value, key=f"proj_{group}_{team}_{perm}")
+# Even though df_value is now True, the widget returns its cached False!
+```
+
+### Why this happens
+
+Streamlit's widget lifecycle:
+1. First render: widget created with `key="proj_flagMgmt_Dev_CreateFlags"`, value=False
+2. User interacts, Streamlit caches `False` for that key
+3. Apply writes `True` to the DataFrame
+4. Next render: same key exists in cache, so Streamlit uses cached `False` — ignores the DataFrame
+
+### The fix: version-based keys
+
+```python
+# GOOD — include a version number in the key. When version changes,
+# Streamlit sees a NEW key and creates a fresh widget from the DataFrame.
+version = st.session_state.get("_widget_version", 0)
+st.checkbox(perm, value=df_value, key=f"proj_v{version}_{group}_{team}_{perm}")
+
+# In _apply_recommendation():
+st.session_state["_widget_version"] = st.session_state.get("_widget_version", 0) + 1
+```
+
+### Same fix for st.data_editor
+
+The Setup tab's `st.data_editor` for teams and `env_groups` had the exact same issue:
+
+```python
+# BAD — static key, data_editor restores old cached values
+st.data_editor(teams_df, key="teams_editor")
+
+# GOOD — versioned key forces fresh widget
+version = st.session_state.get("_widget_version", 0)
+st.data_editor(teams_df, key=f"teams_editor_v{version}")
+```
+
+### When you need this pattern
+
+Use version-based keys whenever:
+1. Code (not the user) writes data to session_state
+2. Widgets need to reflect that programmatic change
+3. The widget key would otherwise stay the same between reruns
+
+You do NOT need this when the user directly interacts with the widget (Streamlit handles that natively).
+
+---
+
 ## Quick Reference Card
 
 ```python
 # === Generator (streaming) ===
 def stream(prompt) -> Generator[str, None, None]:
-    for chunk in api.generate(prompt, stream=True):
+    for chunk in chat.send_message_stream(prompt):  # new SDK
         yield chunk.text
 
 # === Regex: extract JSON from markdown ===
@@ -450,12 +525,13 @@ import re, json
 matches = re.findall(r"```json\s*(.*?)\s*```", text, re.DOTALL)
 data = json.loads(matches[-1]) if matches else None
 
-# === Streamlit chat ===
+# === Streamlit chat with thinking indicator ===
 if user_input := st.chat_input("Message..."):
     with st.chat_message("user"):
         st.markdown(user_input)
     with st.chat_message("assistant"):
         placeholder = st.empty()
+        placeholder.markdown("*Thinking...*")  # shown while waiting for first chunk
         full = ""
         for chunk in stream(user_input):
             full += chunk
@@ -465,16 +541,30 @@ if user_input := st.chat_input("Message..."):
 # === Chat history in session_state ===
 st.session_state.messages.append({"role": "user", "content": text})
 
+# === API client (google.genai new SDK) ===
+from google import genai
+from google.genai import types
+client = genai.Client(api_key=key, http_options={"timeout": 120_000})
+chat = client.chats.create(
+    model="gemini-2.5-flash",
+    config=types.GenerateContentConfig(system_instruction=system),
+)
+
 # === API client error wrapping ===
 try:
-    response = client.generate(prompt)
+    response = chat.send_message(prompt)
 except Exception as e:
     raise CustomError(f"API failed: {e}") from e
 
-# === System prompt with structured output ===
-system = f"""You are an advisor.
-Available options: {options}
-End response with ```json ... ``` block."""
+# === Widget key versioning (Streamlit caching fix) ===
+version = st.session_state.get("_widget_version", 0)
+st.checkbox(label, value=df_val, key=f"proj_v{version}_{group}_{team}_{perm}")
+
+# === st.secrets safe access ===
+try:
+    key = st.secrets.get("GEMINI_API_KEY", "")
+except Exception:
+    key = ""  # no secrets.toml
 
 # === Walrus operator ===
 if value := expensive_call():  # assign AND check in one line

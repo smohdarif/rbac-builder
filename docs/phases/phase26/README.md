@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Phase** | 26 |
-| **Status** | 📋 Design Complete — Ready for Implementation |
+| **Status** | ✅ Implemented |
 | **Priority** | 🟡 Medium |
 | **Goal** | Show how many SAs are currently using the app — live count in the sidebar |
 | **Depends on** | None (standalone feature) |

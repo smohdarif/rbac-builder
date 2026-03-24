@@ -332,8 +332,10 @@ Disable thinking tokens initially. RBAC recommendations don't require deep reaso
 
 ```python
 # Disable thinking to cut costs by ~60%
-generation_config = genai.GenerationConfig(
-    thinking_config=genai.ThinkingConfig(thinking_budget=0)
+# Note: Uses google.genai (new SDK), not google.generativeai (deprecated)
+from google.genai import types
+config = types.GenerateContentConfig(
+    thinking_config=types.ThinkingConfig(thinking_budget=0)
 )
 ```
 
@@ -383,17 +385,28 @@ Gemini supports a built-in **Google Search grounding** tool. When enabled, the m
 can automatically search the web when it needs information beyond its training data.
 
 ```python
+from google import genai
 from google.genai import types
+
+# New SDK: Client pattern (not genai.configure())
+client = genai.Client(
+    api_key=api_key,
+    http_options={"timeout": 120_000},  # 120s for large system prompts
+)
 
 # Enable Google Search grounding
 grounding_tool = types.Tool(google_search=types.GoogleSearch())
 
-# Create model with grounding
-model = genai.GenerativeModel(
-    "gemini-2.5-flash",
-    system_instruction=system_prompt,
-    tools=[grounding_tool],
+# New SDK: client.chats.create() (not model.start_chat())
+chat = client.chats.create(
+    model="gemini-2.5-flash",
+    config=types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        tools=[grounding_tool],
+    ),
 )
+
+# Requirement: google-genai>=1.0.0 (not google-generativeai)
 ```
 
 **How it works:**
@@ -486,10 +499,17 @@ def get_gemini_api_key() -> str:
     """
     Get the Gemini API key from environment or Streamlit secrets.
     Admin-provided — SAs don't need their own key.
+
+    GOTCHA: "GEMINI_API_KEY" in st.secrets raises StreamlitSecretNotFoundError
+    when no secrets.toml file exists. Must use try/except with st.secrets.get().
     """
-    # Streamlit Cloud: secrets take priority
-    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-        return st.secrets["GEMINI_API_KEY"]
+    # Streamlit Cloud: secrets management — use try/except, not "in" check
+    try:
+        key = st.secrets.get("GEMINI_API_KEY", "")
+        if key:
+            return key
+    except Exception:
+        pass  # No secrets.toml — fall through to env var
 
     # Localhost: environment variable
     key = os.environ.get("GEMINI_API_KEY", "")
