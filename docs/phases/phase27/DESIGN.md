@@ -1487,145 +1487,88 @@ THEN:  raises AdvisorError("Context not set...")
 
 ---
 
-## Feature: Auto-Navigate to Design Matrix After Apply
+## Feature: Post-Apply UX — Success Feedback
 
 ### High-Level Design (HLD)
 
 #### What Are We Building and Why?
 
-After clicking "Apply to Matrix", the SA stays on the Role Designer AI tab and must manually click the Design Matrix tab to see results. This is a UX gap — the SA should land directly on the matrix they just populated.
+After clicking "Apply to Matrix", the SA needs clear feedback that the action succeeded and guidance on where to see the results.
 
-#### Design Decision: Option D (JS Auto-Switch + Banner Fallback)
+#### Design Decision: Option B (Banner + Balloons)
 
-| Approach | Pros | Cons | Verdict |
-|----------|------|------|---------|
-| **A. JS tab click injection** | Instant switch, no page reload | Uses `window.parent.document` (fragile), may break on Streamlit updates | Possible |
-| **B. Success banner only** | Clean, no JS, user stays in control | One extra click required | Safe fallback |
-| **C. `st.query_params` + page reload** | Native Streamlit, no JS | Full page reload, loses chat scroll | Not great |
-| **D. Combine A + B** | Auto-switch with JS, graceful fallback to banner if JS fails | Best of both | **Chosen** |
+| Approach | Verdict | Outcome |
+|----------|---------|---------|
+| **A. JS tab click injection** | ❌ Tried, failed | Works on localhost but **fails on Streamlit Cloud** — iframe sandboxing blocks `window.parent.document` access |
+| **B. Success banner + balloons** | ✅ **Shipped** | Works everywhere, clear UX, no browser dependencies |
+| **C. `st.query_params` + page reload** | ❌ Rejected | Full page reload loses chat scroll position |
+| **D. Combine A + B** | ❌ Tried, failed | Option A component is unreliable across deployments |
 
-**Why Option D:** The JS injection gives the best UX (instant navigation). If Streamlit ever changes its internal DOM structure, the JS silently fails and the banner remains as a manual fallback. No data loss either way.
+**Why Option B won:** After testing Option D (JS auto-switch + banner fallback), we discovered that Streamlit Cloud sandboxes `components.html` iframes, blocking `window.parent.document` access. The JS worked on localhost but silently failed on Cloud. Rather than ship unreliable behavior, we went with the simple, reliable approach: `st.balloons()` celebration + clear banner telling the user which tab to click.
 
-#### Architecture
+**Lesson learned:** Don't rely on browser DOM manipulation in Streamlit — the deployment environment (Cloud vs localhost) has different security policies. Streamlit doesn't support programmatic tab switching natively, and workarounds are fragile.
+
+#### Architecture (Final — Shipped)
 
 ```
 SA clicks "Apply to Matrix"
         │
         ▼
 _apply_recommendation() runs
-  → writes teams, envs, matrices
+  → writes teams, envs, matrices to session_state
   → sets _advisor_applied = True        (matrix sync)
-  → sets _advisor_show_success = True   (auto-navigation)
+  → sets _advisor_show_success = True   (success feedback)
+  → bumps _matrix_version               (fresh widget keys)
   → st.rerun()
         │
         ▼
 On rerun, render_advisor_tab() detects _advisor_show_success:
-  1. Shows green success banner
-  2. Injects hidden <iframe> with JS snippet
+  1. Fires st.balloons() (confetti animation)
+  2. Shows green success banner with tab name
+  3. Clears the flag
         │
         ▼
-JS snippet executes in browser:
-  → Finds all <button data-baseweb="tab"> elements
-  → Clicks tabs[1] (index-based: 0=Setup, 1=Matrix, 2=Deploy, 3=Reference, 4=Role Designer)
-        │
-        ▼
-Browser switches to Design Matrix tab
+SA clicks "📊 2. Design Matrix" tab manually
   → Matrix shows pre-filled checkboxes from AI recommendation
-  → Success banner is visible briefly before tab switch
-
-If JS fails (DOM changed, browser blocks):
-  → Banner remains visible with manual instructions
-  → SA clicks "Design Matrix" tab manually (graceful degradation)
 ```
 
 ### Detailed Low-Level Design (DLD)
 
-#### 1. Session State Flag
+#### 1. Session State Flags
 
-Replace `_advisor_applied` dual-purpose flag with a dedicated navigation flag:
+Two flags set during Apply, consumed on the next rerun:
 
 ```python
 # In _apply_recommendation(), after writing data:
-st.session_state["_advisor_show_success"] = True
+st.session_state["_advisor_show_success"] = True   # success feedback
+st.session_state["_advisor_applied"] = True         # matrix sync
 
 # In render_advisor_tab(), on rerun:
 if st.session_state.get("_advisor_show_success"):
-    _render_success_and_navigate()
     st.session_state["_advisor_show_success"] = False
-```
-
-#### 2. Success Banner + JS Injection
-
-```python
-def _render_success_and_navigate() -> None:
-    """
-    Show success banner and auto-navigate to Design Matrix tab.
-    Uses JS injection via streamlit.components.v1.html to click
-    the tab button in the parent document's DOM.
-    """
+    st.balloons()
     st.success(
-        "Recommendation applied! Switching to **Design Matrix** tab..."
-    )
-
-    import streamlit.components.v1 as components
-    components.html(
-        """
-        <script>
-        // Streamlit renders tabs as <button data-baseweb="tab"> elements
-        // in the parent frame. We target by index because tab text includes
-        // emojis and numbering, making text matching unreliable.
-        // Index 1 = Design Matrix tab (0=Setup, 1=Matrix, 2=Deploy, 3=Reference, 4=Role Designer)
-        function clickTab() {
-            const tabs = window.parent.document.querySelectorAll(
-                'button[data-baseweb="tab"]'
-            );
-            if (tabs.length >= 2) {
-                tabs[1].click();
-                return true;
-            }
-            return false;
-        }
-        // Retry up to 10 times with 200ms interval (tabs may not be rendered yet)
-        let attempts = 0;
-        const interval = setInterval(() => {
-            if (clickTab() || ++attempts >= 10) clearInterval(interval);
-        }, 200);
-        </script>
-        """,
-        height=0,   # invisible iframe — no UI footprint
+        "Recommendation applied! "
+        "Click the **📊 2. Design Matrix** tab above to see your permissions."
     )
 ```
 
-#### 3. DOM Structure (Streamlit Internals)
+#### 2. Why `st.balloons()`?
 
-Streamlit's `st.tabs()` renders as:
+- Provides instant visual feedback (confetti fills the screen)
+- User knows something happened even before reading the banner
+- Built-in Streamlit function — works on all deployments
+- No dependencies on browser DOM or iframe permissions
 
-```html
-<div data-baseweb="tab-list" role="tablist">
-  <button data-baseweb="tab" role="tab">📋 1. Setup</button>
-  <button data-baseweb="tab" role="tab">📊 2. Design Matrix</button>
-  <button data-baseweb="tab" role="tab">🚀 3. Deploy</button>
-  <button data-baseweb="tab" role="tab">📚 4. Reference Guide</button>
-  <button data-baseweb="tab" role="tab">🤖 5. Role Designer AI</button>
-</div>
-```
-
-The selector `button[data-baseweb="tab"]` targets these buttons.
-We use index-based targeting (`tabs[1]`) instead of text matching because
-tab labels include emojis and numbering (e.g., "📊 2. Design Matrix"),
-making `textContent.includes()` unreliable.
-`.click()` triggers the same behavior as the user clicking.
-
-#### 4. File Changes
+#### 3. File Changes
 
 | File | Change | Lines |
 |------|--------|-------|
-| `ui/advisor_tab.py` | Replace success banner with `_render_success_and_navigate()` | ~20 |
-| No other files | — | — |
+| `ui/advisor_tab.py` | Success banner with `st.balloons()` | ~5 |
 
 ### Pseudo Logic
 
-#### 1. Apply Button Flow (updated)
+#### 1. Apply Button Flow
 
 ```
 FUNCTION handle_apply_click(last_rec, context):
@@ -1634,45 +1577,22 @@ FUNCTION handle_apply_click(last_rec, context):
 
   IF success:
     session_state.last_recommendation = None
-    session_state._advisor_applied = True         ← for matrix sync (Matrix tab checks this)
-    session_state._advisor_show_success = True    ← for auto-navigation
+    session_state._advisor_applied = True         ← matrix tab: skip stale sync
+    session_state._advisor_show_success = True    ← advisor tab: show celebration
     st.rerun()
 ```
 
-#### 2. Success + Navigate (new)
-
-```
-FUNCTION _render_success_and_navigate():
-
-  DISPLAY st.success("Recommendation applied! Switching to Design Matrix tab...")
-
-  # Inject invisible iframe with JS (index-based tab targeting)
-  components.html(
-    SCRIPT:
-      FUNCTION clickTab():
-        tabs = parent.document.querySelectorAll('button[data-baseweb="tab"]')
-        # Index 1 = Design Matrix (0=Setup, 1=Matrix, 2=Deploy, 3=Reference, 4=Role Designer)
-        IF tabs.length >= 2:
-          tabs[1].click()
-          RETURN True
-        RETURN False
-      # Retry up to 10 times, 200ms apart
-      interval = setInterval(clickTab, 200)  # clears after success or 10 attempts
-    HEIGHT = 0   # invisible
-  )
-```
-
-#### 3. Detection on Rerun
+#### 2. Success Feedback (on rerun)
 
 ```
 FUNCTION render_advisor_tab():
 
   ...
 
-  # Check if we just applied
   IF session_state._advisor_show_success:
-    _render_success_and_navigate()
-    session_state._advisor_show_success = False
+    session_state._advisor_show_success = False   ← consume flag
+    st.balloons()                                  ← confetti animation
+    st.success("Recommendation applied! Click Design Matrix tab...")
 
   # Rest of chat UI...
 ```
@@ -1691,46 +1611,21 @@ THEN:  session_state["_advisor_show_success"] == True
 ```
 GIVEN: session_state["_advisor_show_success"] == True
 WHEN:  render_advisor_tab() runs (rerun after Apply)
-THEN:  _render_success_and_navigate() is called
+THEN:  st.balloons() is called
+       st.success() banner is displayed
        session_state["_advisor_show_success"] == False after render
 ```
 
-#### TC-NAV-03: JS snippet targets correct tab selector
-```
-GIVEN: The injected HTML string
-THEN:  Contains 'button[data-baseweb="tab"]' selector
-       Uses index-based targeting: tabs[1] (not text matching)
-       Contains '.click()' call
-       Retries up to 10 times with 200ms interval
-       height=0 (invisible iframe)
-```
-
-#### TC-NAV-04: Graceful degradation when JS fails
-```
-GIVEN: JS snippet fails (DOM changed, browser blocks scripts)
-THEN:  Success banner st.success() is still visible
-       SA can manually click "Design Matrix" tab
-       No error thrown — silent failure
-```
-
-#### TC-NAV-05: No navigation on normal chat (no Apply)
+#### TC-NAV-03: No celebration on normal chat (no Apply)
 ```
 GIVEN: SA sends a chat message (no Apply clicked)
 WHEN:  render_advisor_tab() runs
 THEN:  session_state._advisor_show_success is False or absent
-       _render_success_and_navigate() is NOT called
-       No JS injection occurs
+       st.balloons() is NOT called
+       No success banner shown
 ```
 
-#### TC-NAV-06: Auto-navigate uses index-based tab targeting
-```
-GIVEN: The injected JS snippet
-THEN:  Targets tabs[1] (index-based, not text-based)
-       Does NOT use text matching (unreliable with emoji labels)
-       Retries up to 10 times with 200ms interval
-```
-
-#### TC-NAV-07: Default project key generated when not provided
+#### TC-NAV-04: Default project key generated when not provided
 ```
 GIVEN: No project key in Setup or context, customer_name = "Acme Corp"
 WHEN:  _apply_recommendation() runs
@@ -1741,25 +1636,26 @@ WHEN:  _apply_recommendation() runs
 THEN:  session_state.project = "my-project"
 ```
 
-### Risk Assessment
+### What We Tried and Why It Failed
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Streamlit changes `data-baseweb="tab"` selector | Low (stable since v1.26) | JS fails silently, banner remains | Text-based fallback in banner |
-| `window.parent.document` blocked by CSP | Very low (same origin) | JS fails silently | Banner fallback |
-| Multiple tabs match "Design Matrix" text | None (unique text) | N/A | — |
-| JS executes before tab content renders | Low | Tab switches but content may flash | Streamlit re-renders instantly |
-| Tab text matching fails due to emoji/numbering in labels | **Happened** | JS never clicks the tab | Fixed: switched to index-based targeting (`tabs[1]`) |
+| Approach | What happened | Root cause |
+|----------|--------------|------------|
+| `st.markdown("<script>...")` with `unsafe_allow_html=True` | Script tag stripped, nothing happened | Streamlit sanitizes `<script>` tags from markdown |
+| `components.html("<script>window.parent.document...")` on localhost | Worked — tab switched | Same-origin iframe, no sandbox restrictions |
+| `components.html("<script>window.parent.document...")` on Streamlit Cloud | Silently failed — banner shown but no tab switch | Cloud sandboxes component iframes, blocking `window.parent.document` |
+| Text-based tab matching (`innerText.indexOf('Design Matrix')`) | Didn't match | Tab labels include emojis: "📊 2. Design Matrix" |
+| Index-based tab targeting (`tabs[1].click()`) | Worked on localhost, failed on Cloud | Same iframe sandbox issue |
 
-### Python Concepts
+**Conclusion:** Streamlit does not support programmatic tab switching. All JS-based workarounds are deployment-dependent. The reliable approach is clear UX feedback (balloons + banner) and let the user click.
 
-| Concept | Used for |
-|---------|---------|
-| `streamlit.components.v1.html()` | Injecting raw HTML/JS into the page |
-| `window.parent.document` | Accessing the parent frame's DOM from an iframe |
-| `querySelectorAll` + index targeting | Finding tab buttons by position (index-based, not text-based) |
-| `height=0` | Making the injected iframe invisible |
-| Graceful degradation | JS failure doesn't break the app |
+### Python/Streamlit Concepts
+
+| Concept | What we learned |
+|---------|----------------|
+| `st.balloons()` | Built-in celebration animation — works everywhere |
+| `components.html` iframe sandboxing | Localhost ≠ Cloud security policies |
+| `st.markdown` script sanitization | `unsafe_allow_html=True` still strips `<script>` tags |
+| Session state flag lifecycle | Set → rerun → consume → gone (one-shot pattern) |
 
 ---
 
