@@ -330,6 +330,7 @@ pytest tests/ --cov=. --cov-report=html
 | 25 | `core/ld_actions.py` | Account-Level Admin Roles | [📄 Phase 25](docs/phases/phase25/) | 📋 Planned |
 | 26 | `core/session_tracker.py` | Active User Counter | [📄 Phase 26](docs/phases/phase26/) | ✅ `test_session_tracker.py` |
 | 27 | `ui/advisor_tab.py` | Sage — Role Designer AI (Gemini Chat) | [📄 Phase 27](docs/phases/phase27/) | ✅ `test_ai_advisor.py` |
+| 28 | `ui/setup_tab.py` | Config Upload & Resume | [📄 Phase 28](docs/phases/phase28/) | 📋 Planned |
 
 ## Running the App
 
