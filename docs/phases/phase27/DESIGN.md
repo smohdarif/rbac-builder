@@ -1475,6 +1475,246 @@ THEN:  raises AdvisorError("Context not set...")
 
 ---
 
+## Feature: Auto-Navigate to Design Matrix After Apply
+
+### High-Level Design (HLD)
+
+#### What Are We Building and Why?
+
+After clicking "Apply to Matrix", the SA stays on the Role Designer AI tab and must manually click the Design Matrix tab to see results. This is a UX gap — the SA should land directly on the matrix they just populated.
+
+#### Design Decision: Option D (JS Auto-Switch + Banner Fallback)
+
+| Approach | Pros | Cons | Verdict |
+|----------|------|------|---------|
+| **A. JS tab click injection** | Instant switch, no page reload | Uses `window.parent.document` (fragile), may break on Streamlit updates | Possible |
+| **B. Success banner only** | Clean, no JS, user stays in control | One extra click required | Safe fallback |
+| **C. `st.query_params` + page reload** | Native Streamlit, no JS | Full page reload, loses chat scroll | Not great |
+| **D. Combine A + B** | Auto-switch with JS, graceful fallback to banner if JS fails | Best of both | **Chosen** |
+
+**Why Option D:** The JS injection gives the best UX (instant navigation). If Streamlit ever changes its internal DOM structure, the JS silently fails and the banner remains as a manual fallback. No data loss either way.
+
+#### Architecture
+
+```
+SA clicks "Apply to Matrix"
+        │
+        ▼
+_apply_recommendation() runs
+  → writes teams, envs, matrices
+  → sets _advisor_show_success = True
+  → st.rerun()
+        │
+        ▼
+On rerun, render_advisor_tab() detects _advisor_show_success:
+  1. Shows green success banner
+  2. Injects hidden <iframe> with JS snippet
+        │
+        ▼
+JS snippet executes in browser:
+  → Finds all <button data-baseweb="tab"> elements
+  → Clicks the one containing "Design Matrix" text
+        │
+        ▼
+Browser switches to Design Matrix tab
+  → Matrix shows pre-filled checkboxes from AI recommendation
+  → Success banner is visible briefly before tab switch
+
+If JS fails (DOM changed, browser blocks):
+  → Banner remains visible with manual instructions
+  → SA clicks "Design Matrix" tab manually (graceful degradation)
+```
+
+### Detailed Low-Level Design (DLD)
+
+#### 1. Session State Flag
+
+Replace `_advisor_applied` dual-purpose flag with a dedicated navigation flag:
+
+```python
+# In _apply_recommendation(), after writing data:
+st.session_state["_advisor_show_success"] = True
+
+# In render_advisor_tab(), on rerun:
+if st.session_state.get("_advisor_show_success"):
+    _render_success_and_navigate()
+    st.session_state["_advisor_show_success"] = False
+```
+
+#### 2. Success Banner + JS Injection
+
+```python
+def _render_success_and_navigate() -> None:
+    """
+    Show success banner and auto-navigate to Design Matrix tab.
+    Uses JS injection via streamlit.components.v1.html to click
+    the tab button in the parent document's DOM.
+    """
+    st.success(
+        "Recommendation applied! Switching to **Design Matrix** tab..."
+    )
+
+    import streamlit.components.v1 as components
+    components.html(
+        """
+        <script>
+        // Streamlit renders tabs as <button data-baseweb="tab"> elements
+        // in the parent frame. We find the one with "Design Matrix" text
+        // and programmatically click it.
+        const tabs = window.parent.document.querySelectorAll(
+            'button[data-baseweb="tab"]'
+        );
+        for (const tab of tabs) {
+            if (tab.textContent.includes('Design Matrix')) {
+                tab.click();
+                break;
+            }
+        }
+        </script>
+        """,
+        height=0,   # invisible iframe — no UI footprint
+    )
+```
+
+#### 3. DOM Structure (Streamlit Internals)
+
+Streamlit's `st.tabs()` renders as:
+
+```html
+<div data-baseweb="tab-list" role="tablist">
+  <button data-baseweb="tab" role="tab">📋 1. Setup</button>
+  <button data-baseweb="tab" role="tab">📊 2. Design Matrix</button>
+  <button data-baseweb="tab" role="tab">🚀 3. Deploy</button>
+  <button data-baseweb="tab" role="tab">📚 4. Reference Guide</button>
+  <button data-baseweb="tab" role="tab">🤖 5. Role Designer AI</button>
+</div>
+```
+
+The selector `button[data-baseweb="tab"]` targets these buttons.
+`textContent.includes('Design Matrix')` matches the second tab.
+`.click()` triggers the same behavior as the user clicking.
+
+#### 4. File Changes
+
+| File | Change | Lines |
+|------|--------|-------|
+| `ui/advisor_tab.py` | Replace success banner with `_render_success_and_navigate()` | ~20 |
+| No other files | — | — |
+
+### Pseudo Logic
+
+#### 1. Apply Button Flow (updated)
+
+```
+FUNCTION handle_apply_click(last_rec, context):
+
+  success = _apply_recommendation(last_rec, context)
+
+  IF success:
+    session_state.last_recommendation = None
+    session_state._advisor_show_success = True    ← renamed flag
+    st.rerun()
+```
+
+#### 2. Success + Navigate (new)
+
+```
+FUNCTION _render_success_and_navigate():
+
+  DISPLAY st.success("Recommendation applied! Switching to Design Matrix tab...")
+
+  # Inject invisible iframe with JS
+  components.html(
+    SCRIPT:
+      tabs = parent.document.querySelectorAll('button[data-baseweb="tab"]')
+      FOR each tab:
+        IF tab.textContent CONTAINS "Design Matrix":
+          tab.click()
+          BREAK
+    HEIGHT = 0   # invisible
+  )
+```
+
+#### 3. Detection on Rerun
+
+```
+FUNCTION render_advisor_tab():
+
+  ...
+
+  # Check if we just applied
+  IF session_state._advisor_show_success:
+    _render_success_and_navigate()
+    session_state._advisor_show_success = False
+
+  # Rest of chat UI...
+```
+
+### Test Cases
+
+#### TC-NAV-01: Success flag is set after Apply
+```
+GIVEN: AI recommendation parsed and Apply button clicked
+WHEN:  _apply_recommendation() returns True
+THEN:  session_state["_advisor_show_success"] == True
+       session_state[ADVISOR_LAST_RECOMMENDATION_KEY] == None
+```
+
+#### TC-NAV-02: Success flag is cleared after render
+```
+GIVEN: session_state["_advisor_show_success"] == True
+WHEN:  render_advisor_tab() runs (rerun after Apply)
+THEN:  _render_success_and_navigate() is called
+       session_state["_advisor_show_success"] == False after render
+```
+
+#### TC-NAV-03: JS snippet targets correct tab selector
+```
+GIVEN: The injected HTML string
+THEN:  Contains 'button[data-baseweb="tab"]' selector
+       Contains 'Design Matrix' text match
+       Contains '.click()' call
+       height=0 (invisible iframe)
+```
+
+#### TC-NAV-04: Graceful degradation when JS fails
+```
+GIVEN: JS snippet fails (DOM changed, browser blocks scripts)
+THEN:  Success banner st.success() is still visible
+       SA can manually click "Design Matrix" tab
+       No error thrown — silent failure
+```
+
+#### TC-NAV-05: No navigation on normal chat (no Apply)
+```
+GIVEN: SA sends a chat message (no Apply clicked)
+WHEN:  render_advisor_tab() runs
+THEN:  session_state._advisor_show_success is False or absent
+       _render_success_and_navigate() is NOT called
+       No JS injection occurs
+```
+
+### Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Streamlit changes `data-baseweb="tab"` selector | Low (stable since v1.26) | JS fails silently, banner remains | Text-based fallback in banner |
+| `window.parent.document` blocked by CSP | Very low (same origin) | JS fails silently | Banner fallback |
+| Multiple tabs match "Design Matrix" text | None (unique text) | N/A | — |
+| JS executes before tab content renders | Low | Tab switches but content may flash | Streamlit re-renders instantly |
+
+### Python Concepts
+
+| Concept | Used for |
+|---------|---------|
+| `streamlit.components.v1.html()` | Injecting raw HTML/JS into the page |
+| `window.parent.document` | Accessing the parent frame's DOM from an iframe |
+| `querySelectorAll` + `textContent` | Finding specific tab buttons by their label |
+| `height=0` | Making the injected iframe invisible |
+| Graceful degradation | JS failure doesn't break the app |
+
+---
+
 ## Navigation
 
 - [← README](./README.md)
