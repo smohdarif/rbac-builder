@@ -13,7 +13,10 @@ Concepts introduced when building an AI-powered chat advisor with Gemini integra
 5. [Live Streaming UI with `st.empty()`](#5-live-streaming-ui-with-stempty)
 6. [API Client Pattern — Configuration, Sessions, Error Handling](#6-api-client-pattern--configuration-sessions-error-handling)
 7. [Streamlit Widget Key Versioning — Solving the Caching Bug](#7-streamlit-widget-key-versioning--solving-the-caching-bug)
-8. [Quick Reference Card](#quick-reference-card)
+8. [JavaScript Injection — Controlling the Browser from Python](#8-javascript-injection--controlling-the-browser-from-python)
+9. [Collapsible Content — `st.expander` for Long Outputs](#9-collapsible-content--stexpander-for-long-outputs)
+10. [Session State Flags — Coordinating Across Tabs](#10-session-state-flags--coordinating-across-tabs)
+11. [Quick Reference Card](#quick-reference-card)
 
 ---
 
@@ -512,6 +515,240 @@ You do NOT need this when the user directly interacts with the widget (Streamlit
 
 ---
 
+## 8. JavaScript Injection — Controlling the Browser from Python
+
+### The concept
+
+Streamlit doesn't support programmatic tab switching. But we can inject JavaScript into the page via `streamlit.components.v1.html()`. This creates a tiny invisible iframe that runs our script in the browser.
+
+```python
+import streamlit.components.v1 as components
+
+# Inject invisible JS into the page
+components.html(
+    """
+    <script>
+    // This runs in the USER'S BROWSER, not on the server
+    console.log("Hello from injected JS!");
+    </script>
+    """,
+    height=0,         # invisible — no UI footprint
+    scrolling=False,
+)
+```
+
+### Accessing the parent page's DOM
+
+The injected iframe can access the main Streamlit page via `window.parent.document`:
+
+```python
+components.html("""
+    <script>
+    // Find all tab buttons in the Streamlit page
+    var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+    // Click the second tab (Design Matrix)
+    if (tabs.length >= 2) {
+        tabs[1].click();
+    }
+    </script>
+""", height=0)
+```
+
+### Why index-based, not text-based?
+
+```javascript
+// BAD — tab labels include emojis and numbering ("📊 2. Design Matrix")
+// innerText.indexOf('Design Matrix') works in theory but is fragile
+if (tabs[i].innerText.indexOf('Design Matrix') !== -1) { ... }
+
+// GOOD — target by position (more reliable)
+// Tab order: 0=Setup, 1=Design Matrix, 2=Deploy, 3=Reference, 4=Role Designer
+tabs[1].click();
+```
+
+### Retry pattern for DOM timing
+
+The tab buttons may not exist in the DOM when our script first runs (Streamlit renders progressively). Solution: retry with `setInterval`:
+
+```javascript
+var attempts = 0;
+var interval = setInterval(function() {
+    attempts++;
+    var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+    if (tabs.length >= 2) {
+        tabs[1].click();
+        clearInterval(interval);   // stop retrying
+    } else if (attempts >= 10) {
+        clearInterval(interval);   // give up after 2 seconds
+    }
+}, 200);  // try every 200ms
+```
+
+### GOTCHA: `st.markdown` strips `<script>` tags
+
+```python
+# BAD — Streamlit sanitizes script tags, even with unsafe_allow_html
+st.markdown("<script>alert('hi')</script>", unsafe_allow_html=True)
+# Result: script tag is REMOVED, nothing happens
+
+# GOOD — components.html creates an iframe that CAN run scripts
+components.html("<script>alert('hi')</script>", height=0)
+# Result: script runs in the iframe
+```
+
+### Graceful degradation
+
+If the JS fails (DOM changes, browser blocks), nothing breaks — the success banner is still visible and the user can click the tab manually. This is the "Option D" pattern: try the best approach, fall back silently.
+
+---
+
+## 9. Collapsible Content — `st.expander` for Long Outputs
+
+### The concept
+
+AI responses include both readable explanation and a large JSON block. Showing the raw JSON inline is overwhelming. `st.expander` collapses it into a toggleable section:
+
+```python
+# Before: JSON clutters the chat
+st.markdown(full_response)  # explanation + huge JSON blob
+
+# After: JSON tucked away
+st.markdown(explanation_text)
+with st.expander("📋 View JSON Recommendation", expanded=False):
+    st.markdown(json_block)
+```
+
+### Splitting response into explanation + JSON
+
+```python
+import re
+
+def _render_message_content(content: str) -> None:
+    """Render message with collapsible JSON blocks."""
+    # Split on the last ```json ... ``` block
+    pattern = r"(```json\s*.*?\s*```)"
+    parts = re.split(pattern, content, flags=re.DOTALL)
+
+    if len(parts) > 1:
+        # Everything before JSON
+        before = "".join(parts[:-2]).strip()
+        json_block = parts[-2]       # the ```json...``` block
+        after = parts[-1].strip()    # anything after
+
+        if before:
+            st.markdown(before)
+        with st.expander("📋 View JSON Recommendation", expanded=False):
+            st.markdown(json_block)
+        if after:
+            st.markdown(after)
+    else:
+        st.markdown(content)
+```
+
+### `re.split` with a capture group
+
+```python
+# re.split WITHOUT capture group — delimiters are REMOVED
+re.split(r"---", "a---b---c")
+# → ['a', 'b', 'c']  (delimiters gone)
+
+# re.split WITH capture group () — delimiters are KEPT
+re.split(r"(---)", "a---b---c")
+# → ['a', '---', 'b', '---', 'c']  (delimiters preserved as elements)
+
+# We use a capture group so the JSON block is preserved in the output:
+re.split(r"(```json\s*.*?\s*```)", response, flags=re.DOTALL)
+# → ['explanation text', '```json\n{...}\n```', 'trailing text']
+```
+
+### Rendering in chat history vs streaming
+
+```python
+# During streaming: show raw markdown (can't use expander inside st.empty)
+placeholder = st.empty()
+placeholder.markdown(full_response + "▌")
+
+# After streaming completes: replace with collapsible version
+placeholder.empty()
+_render_message_content(full_response)
+
+# In chat history replay: always use collapsible version
+for msg in messages:
+    with st.chat_message(msg["role"]):
+        if msg["role"] == "assistant":
+            _render_message_content(msg["content"])
+        else:
+            st.markdown(msg["content"])
+```
+
+---
+
+## 10. Session State Flags — Coordinating Across Tabs
+
+### The concept
+
+Streamlit reruns ALL tabs on every interaction. When the Advisor (Tab 5) writes data that the Matrix tab (Tab 2) needs to read differently, we use session_state flags to coordinate:
+
+```python
+# Tab 5 (Advisor) — sets flags during Apply
+st.session_state["_advisor_applied"] = True       # Matrix tab: skip stale sync
+st.session_state["_advisor_show_success"] = True   # Advisor tab: show banner + navigate
+st.session_state["_matrix_version"] = version + 1  # All tabs: fresh widget keys
+st.session_state["_advisor_customer_name"] = name   # Sidebar: pre-fill customer name
+
+# Tab 2 (Matrix) — reads the flag
+if st.session_state.get("_advisor_applied"):
+    # Trust the Advisor's data, don't sync from Setup
+    env_keys = env_matrix["Environment"].unique().tolist()
+```
+
+### Flag lifecycle
+
+```
+Apply clicked (Tab 5)
+  → _advisor_applied = True
+  → _advisor_show_success = True
+  → _matrix_version += 1
+  → st.rerun()
+
+Rerun starts:
+  Tab 1 (Setup):  reads _matrix_version → versioned data_editor keys
+  Tab 2 (Matrix): reads _advisor_applied → skips stale sync, trusts data
+  Tab 5 (Advisor): reads _advisor_show_success → shows banner + JS navigate
+                   sets _advisor_show_success = False (consumed)
+```
+
+### Naming convention
+
+```python
+# Prefix with _ to indicate "internal, not user-facing"
+st.session_state["_advisor_applied"]         # bool flag
+st.session_state["_advisor_show_success"]    # bool flag
+st.session_state["_advisor_customer_name"]   # str value
+st.session_state["_matrix_version"]          # int counter
+
+# No prefix for user-facing data
+st.session_state["teams"]                    # DataFrame
+st.session_state["env_groups"]               # DataFrame
+st.session_state["project_matrix"]           # DataFrame
+```
+
+### GOTCHA: Flags must be consumed
+
+```python
+# BAD — flag stays True forever, re-triggers on every rerun
+if st.session_state.get("_advisor_applied"):
+    do_special_thing()
+# Next rerun: still True → does the special thing again!
+
+# GOOD — consume the flag after use
+if st.session_state.get("_advisor_show_success"):
+    show_banner()
+    st.session_state["_advisor_show_success"] = False  # consumed
+```
+
+---
+
 ## Quick Reference Card
 
 ```python
@@ -525,18 +762,27 @@ import re, json
 matches = re.findall(r"```json\s*(.*?)\s*```", text, re.DOTALL)
 data = json.loads(matches[-1]) if matches else None
 
+# === re.split with capture group (keep delimiters) ===
+parts = re.split(r"(```json\s*.*?\s*```)", text, flags=re.DOTALL)
+# → ['explanation', '```json\n{...}\n```', 'trailing']
+
 # === Streamlit chat with thinking indicator ===
 if user_input := st.chat_input("Message..."):
     with st.chat_message("user"):
         st.markdown(user_input)
     with st.chat_message("assistant"):
         placeholder = st.empty()
-        placeholder.markdown("*Thinking...*")  # shown while waiting for first chunk
+        placeholder.markdown("*Thinking...*")
         full = ""
         for chunk in stream(user_input):
             full += chunk
             placeholder.markdown(full + "▌")
-        placeholder.markdown(full)
+        placeholder.empty()
+        _render_message_content(full)  # collapsible JSON
+
+# === Collapsible content ===
+with st.expander("📋 View JSON", expanded=False):
+    st.markdown(json_block)
 
 # === Chat history in session_state ===
 st.session_state.messages.append({"role": "user", "content": text})
@@ -557,8 +803,21 @@ except Exception as e:
     raise CustomError(f"API failed: {e}") from e
 
 # === Widget key versioning (Streamlit caching fix) ===
-version = st.session_state.get("_widget_version", 0)
-st.checkbox(label, value=df_val, key=f"proj_v{version}_{group}_{team}_{perm}")
+version = st.session_state.get("_matrix_version", 0)
+st.checkbox(label, value=df_val, key=f"proj_v{version}_{group}_{idx}")
+st.data_editor(df, key=f"editor_v{version}")
+
+# === JS injection (tab switching, browser control) ===
+import streamlit.components.v1 as components
+components.html("<script>window.parent.document...</script>", height=0)
+# NOTE: st.markdown strips <script> tags — use components.html instead
+
+# === Session state flags (cross-tab coordination) ===
+st.session_state["_advisor_applied"] = True       # matrix: skip sync
+st.session_state["_advisor_show_success"] = True   # advisor: navigate
+st.session_state["_matrix_version"] += 1           # all: fresh widgets
+# Always consume flags after use:
+st.session_state["_advisor_show_success"] = False
 
 # === st.secrets safe access ===
 try:
