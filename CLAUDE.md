@@ -130,21 +130,42 @@ rbac-builder/
 
 ## Documentation Maintenance
 
-**IMPORTANT:** When making significant design or architectural changes:
+**CRITICAL:** Documentation MUST be updated alongside ANY code change. This is not optional.
 
-1. **Update `RBAC_BUILDER_DESIGN.md`** - Document any changes to:
-   - UI structure (tabs, sections, workflows)
-   - Data flow (session state, cross-tab communication)
-   - New features or components
-   - Architecture decisions
+### When to Update Docs
 
-2. **Update `docs/RBAC_CONCEPTS.md`** - If adding new RBAC terminology or concepts
+Update docs for **every** change, not just "significant" ones:
 
-3. **Keep diagrams current** - Update ASCII diagrams when UI structure changes
+- **Bug fixes** — Document what broke, why, and the fix in the relevant phase's DESIGN.md
+- **Design changes** — Update HLD, DLD, pseudo logic, and architecture diagrams
+- **New features** — Full phase docs (README, DESIGN, PYTHON_CONCEPTS) before implementation
+- **Workarounds** — Document what was tried, what failed, and why (e.g., "What We Tried and Why It Failed" tables)
+- **Tab/UI changes** — Update ALL references across ALL phase docs (tab numbers, names, order)
+- **Session state changes** — Update flag documentation, lifecycle diagrams, naming conventions
+- **Test case changes** — Keep test case IDs and GIVEN/WHEN/THEN specs in sync with actual tests
 
-4. **Add implementation notes** - Document the "how" and "why" of implementation choices
+### Which Docs to Update
 
-This ensures the design document stays in sync with the actual implementation.
+For any change, check ALL of these and update whichever are relevant:
+
+1. **Phase DESIGN.md** — HLD, DLD, pseudo logic, test cases, implementation plan
+2. **Phase README.md** — Status, file list, implementation checklist
+3. **Phase PYTHON_CONCEPTS.md** — New patterns, gotchas, code examples
+4. **`RBAC_BUILDER_DESIGN.md`** — Overall architecture, UI structure, data flow
+5. **`docs/RBAC_CONCEPTS.md`** — New RBAC terminology or concepts
+6. **`CLAUDE.md`** — Phase table status, new instructions
+7. **Other phase docs** — If the change affects multiple phases (e.g., shared session state)
+
+### Documentation Quality Rules
+
+- **Keep diagrams current** — Update ASCII diagrams when UI structure changes
+- **Document failures** — "What we tried and why it failed" is as valuable as what worked
+- **Include the WHY** — Not just what changed, but why the previous approach didn't work
+- **Test cases match code** — If tests change, update the DESIGN.md test case specs
+- **No stale status** — Phase status (Planned/Design Complete/Implemented) must match reality
+
+This ensures the design documents stay in sync with the actual implementation.
+The user is learning Python — documentation is how they understand the codebase.
 
 ## Phase Documentation Requirements
 
