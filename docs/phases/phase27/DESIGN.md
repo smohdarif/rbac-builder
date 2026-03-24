@@ -1659,6 +1659,271 @@ THEN:  session_state.project = "my-project"
 
 ---
 
+## Feature: Role Designer AI Section in Reference Guide
+
+### High-Level Design (HLD)
+
+#### What Are We Building and Why?
+
+The Reference Guide (Tab 5) has comprehensive RBAC documentation but nothing about the Role Designer AI itself. SAs need to understand:
+- What the AI can and can't do
+- How to get the best results
+- What the starter prompts cover
+- How Apply to Matrix works
+- What happens behind the scenes (system prompt, knowledge base, structured output)
+
+This is a new expandable section added to the existing Reference Guide tab.
+
+#### Architecture
+
+```
+Reference Guide Tab (Tab 5)
+│
+├── 🔗 How It All Connects (existing)
+├── 📖 Key Terms & Definitions (existing)
+├── 👥 Members & Teams (existing)
+├── 🏷️ Built-in Roles (existing)
+├── 📜 Policies (existing)
+├── 🎯 Resources & Resource Syntax (existing)
+├── ⚡ Actions Reference (existing)
+├── 🤖 AI Configs Permissions (existing)
+├── 🔭 Observability Permissions (existing)
+├── 🔐 Permission Scopes (existing)
+├──────────────────────────────────────────
+├── 🤖 Role Designer AI Guide (NEW)         ← added here
+│   ├── What It Does
+│   ├── Quick Start (3 steps)
+│   ├── Starter Prompts Explained
+│   ├── How Apply to Matrix Works
+│   ├── Tips for Better Results
+│   ├── How It Works Behind the Scenes
+│   └── Limitations
+├──────────────────────────────────────────
+├── 🗺️ Upcoming Features (existing)
+└── 🔗 Official Documentation (existing)
+```
+
+The new section is placed **after the RBAC content** (which the AI references) and **before the roadmap** — so SAs learn RBAC first, then learn how to use the AI, then see what's coming next.
+
+### Detailed Low-Level Design (DLD)
+
+#### Content Constants
+
+```python
+ROLE_DESIGNER_AI_GUIDE = {
+    "what_it_does": """
+        The Role Designer AI is a chat-powered assistant that helps you design
+        LaunchDarkly custom roles. Describe your teams, environments, and access
+        needs in plain English — the AI recommends a complete permission matrix
+        based on LaunchDarkly best practices.
+
+        **Key capabilities:**
+        - Recommends project-level and environment-level permissions per team
+        - Explains the reasoning behind each recommendation
+        - Flags anti-patterns (e.g., giving everyone Admin, missing View Project)
+        - Handles follow-up adjustments ("add observability for Developer")
+        - Outputs a structured JSON that populates the Design Matrix with one click
+    """,
+
+    "quick_start": """
+        1. Go to **Tab 4: Role Designer AI**
+        2. Click a **starter prompt** or type your own scenario
+        3. Review the recommendation, then click **Apply to Matrix**
+
+        The AI populates both the **Setup tab** (teams, environments) and
+        the **Design Matrix tab** (permission checkboxes) automatically.
+    """,
+
+    "starter_prompts": """
+        | Prompt | Best For |
+        |--------|----------|
+        | Standard S2 — 5 Teams, 4 Environments | Full PS engagement pattern with approval workflows |
+        | Startup — Small Team, 2 Environments | Dev + Admin, simple separation |
+        | Enterprise — with Observability | Frontend, Backend (AI configs), QA, SRE |
+        | With Contractors — Internal + External | Internal devs + gated contractor access |
+        | Experimentation Focus — A/B Testing | Data Scientists, experiments, metrics |
+        | Just Tell Me Best Practices | General guidance, no specific setup |
+    """,
+
+    "how_apply_works": """
+        When you click **Apply to Matrix**, the AI's recommendation:
+
+        1. **Creates teams** in the Setup tab (if not already configured)
+        2. **Creates environments** with critical/non-critical flags inferred from names
+        3. **Sets the project key** (from your description or defaults to "my-project")
+        4. **Populates the permission matrix** — every checkbox reflects the AI's recommendation
+        5. **Sets customer name** in the sidebar (defaults to "AI-Generated")
+
+        You can then review and adjust any checkbox manually before deploying.
+    """,
+
+    "tips": """
+        **For best results:**
+        - **Name your teams by function** — "Developer", "QA", "SRE" (not "Team A", "Team B")
+        - **Specify which environments are critical** — "production is critical, test is not"
+        - **Describe what each team does** — "QA tests flags in staging, SRE handles production incidents"
+        - **Ask follow-up questions** — "add observability for Developer", "remove Archive from QA"
+        - **Use the Setup tab first** if you already know your teams/envs — the AI reads them automatically
+
+        **What NOT to ask:**
+        - Non-LaunchDarkly topics (AWS IAM, Okta, etc.) — the AI will politely decline
+        - Code generation or debugging help — it's an RBAC specialist only
+    """,
+
+    "behind_the_scenes": """
+        The AI uses:
+        - **Gemini 2.5 Flash** — Google's fast, cost-effective LLM
+        - **Embedded knowledge base** — Team archetypes, environment patterns, permission reference,
+          anti-patterns curated from real PS engagements (sa-demo, Epassi, Voya, S2 template)
+        - **Structured output** — Every recommendation includes a JSON block that the app parses
+        - **Scope guardrails** — The AI only answers LaunchDarkly-related questions
+
+        The API key is managed by the app admin — SAs don't need their own key.
+    """,
+
+    "limitations": """
+        - **No deployment** — The AI recommends permissions but doesn't deploy them.
+          Use the Deploy tab for that.
+        - **No real-time LD data** — The AI doesn't connect to your LaunchDarkly account.
+          It works from the knowledge base + your descriptions.
+        - **Recommendations are starting points** — Always review and adjust the matrix
+          before deploying. The AI defaults to least privilege.
+        - **One conversation per session** — Refreshing the page clears chat history.
+          Use Apply to Matrix before refreshing.
+    """,
+}
+```
+
+#### New Render Function
+
+```python
+def _render_role_designer_ai_guide() -> None:
+    """Render Role Designer AI guide section."""
+    with st.expander("🤖 Role Designer AI Guide", expanded=False):
+        st.markdown("### What It Does")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["what_it_does"])
+
+        st.markdown("### Quick Start")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["quick_start"])
+
+        st.markdown("### Starter Prompts")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["starter_prompts"])
+
+        st.markdown("### How Apply to Matrix Works")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["how_apply_works"])
+
+        st.markdown("### Tips for Better Results")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["tips"])
+
+        st.markdown("### How It Works Behind the Scenes")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["behind_the_scenes"])
+
+        st.markdown("### Limitations")
+        st.markdown(ROLE_DESIGNER_AI_GUIDE["limitations"])
+```
+
+#### Integration in `render_reference_tab()`
+
+```python
+def render_reference_tab() -> None:
+    st.header("📚 LaunchDarkly RBAC Reference Guide")
+    st.markdown("*Quick reference for RBAC concepts while designing your permission matrix*")
+
+    # Existing RBAC sections
+    _render_hierarchy()
+    _render_key_terms()
+    _render_members_teams()
+    _render_builtin_roles()
+    _render_policies()
+    _render_resources()
+    _render_actions()
+    _render_ai_configs()
+    _render_observability()
+    _render_permission_scopes()
+
+    # NEW — Role Designer AI guide
+    _render_role_designer_ai_guide()
+
+    # Existing footer sections
+    _render_upcoming_features()
+    _render_documentation_links()
+```
+
+#### File Changes
+
+| File | Change | Lines |
+|------|--------|-------|
+| `ui/reference_tab.py` | Add `ROLE_DESIGNER_AI_GUIDE` constant + `_render_role_designer_ai_guide()` + call in `render_reference_tab()` | ~80 |
+
+### Pseudo Logic
+
+```
+FUNCTION _render_role_designer_ai_guide():
+
+  WITH st.expander("🤖 Role Designer AI Guide", expanded=False):
+
+    RENDER "What It Does"
+      - Chat-powered RBAC assistant
+      - Capabilities list (recommend, explain, flag anti-patterns, follow-ups, JSON output)
+
+    RENDER "Quick Start"
+      - 3 steps: go to Tab 4 → pick starter or type → click Apply
+
+    RENDER "Starter Prompts"
+      - Table of 6 prompts with "Best For" descriptions
+
+    RENDER "How Apply to Matrix Works"
+      - 5-step flow: teams → envs → project key → matrix → customer name
+
+    RENDER "Tips for Better Results"
+      - DO: name teams by function, specify critical envs, describe team roles
+      - DON'T: ask non-LD questions, ask for code
+
+    RENDER "Behind the Scenes"
+      - Gemini 2.5 Flash, knowledge base sources, structured output, guardrails
+
+    RENDER "Limitations"
+      - No deployment, no live LD data, recommendations are starting points, session-scoped
+```
+
+### Test Cases
+
+#### TC-REF-AI-01: Guide section renders without error
+```
+GIVEN: render_reference_tab() is called
+WHEN:  the page renders
+THEN:  no exceptions raised
+       "Role Designer AI Guide" text appears in the output
+```
+
+#### TC-REF-AI-02: All 7 subsections present
+```
+GIVEN: ROLE_DESIGNER_AI_GUIDE constant
+THEN:  contains keys: what_it_does, quick_start, starter_prompts,
+       how_apply_works, tips, behind_the_scenes, limitations
+       all values are non-empty strings
+```
+
+#### TC-REF-AI-03: Starter prompts table has 6 entries
+```
+GIVEN: ROLE_DESIGNER_AI_GUIDE["starter_prompts"]
+THEN:  contains "Standard S2"
+       contains "Startup"
+       contains "Enterprise"
+       contains "Contractors"
+       contains "Experimentation"
+       contains "Best Practices"
+```
+
+#### TC-REF-AI-04: Guide appears between Permission Scopes and Upcoming Features
+```
+GIVEN: render_reference_tab() call order
+THEN:  _render_permission_scopes() is called BEFORE _render_role_designer_ai_guide()
+       _render_role_designer_ai_guide() is called BEFORE _render_upcoming_features()
+```
+
+---
+
 ## Navigation
 
 - [← README](./README.md)
