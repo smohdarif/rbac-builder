@@ -500,44 +500,13 @@ def render_advisor_tab(customer_name: str = "") -> None:
     # --- Chat History ---
     _render_chat_history()
 
-    # --- Success banner + auto-navigate to Design Matrix ---
+    # --- Success banner after Apply ---
     if st.session_state.get("_advisor_show_success"):
-        st.success(
-            "Recommendation applied! Switching to **Design Matrix** tab..."
-        )
         st.session_state["_advisor_show_success"] = False
-
-        # Auto-click the Design Matrix tab via JS injection.
-        # Uses components.html which creates an iframe that CAN run JS.
-        # Retries every 200ms for up to 2 seconds in case DOM isn't ready.
-        import streamlit.components.v1 as components
-        components.html(
-            """
-            <script>
-            function clickMatrixTab() {
-                try {
-                    var doc = window.parent.document;
-                    // Target the second tab (index 1 = Design Matrix)
-                    // Tab order: 0=Setup, 1=Design Matrix, 2=Deploy, 3=Reference, 4=Role Designer
-                    var tabs = doc.querySelectorAll('[data-baseweb="tab"]');
-                    if (tabs.length >= 2) {
-                        tabs[1].click();
-                        return true;
-                    }
-                } catch(e) {}
-                return false;
-            }
-            var attempts = 0;
-            var interval = setInterval(function() {
-                attempts++;
-                if (clickMatrixTab() || attempts >= 10) {
-                    clearInterval(interval);
-                }
-            }, 200);
-            </script>
-            """,
-            height=0,
-            scrolling=False,
+        st.balloons()
+        st.success(
+            "Recommendation applied! "
+            "Click the **📊 2. Design Matrix** tab above to see your permissions."
         )
 
     # --- Apply Button (if recommendation available) ---
