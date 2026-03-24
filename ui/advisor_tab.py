@@ -358,9 +358,17 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
                 })
             st.session_state.env_groups = pd.DataFrame(env_rows)
 
-        # Project key
-        if not st.session_state.get("project") and context.get("project_key"):
-            st.session_state.project = context["project_key"]
+        # Project key — use context if available, otherwise generate from customer name
+        if not st.session_state.get("project"):
+            if context.get("project_key"):
+                st.session_state.project = context["project_key"]
+            else:
+                # Derive from customer name or use a sensible default
+                customer = st.session_state.get("_advisor_customer_name", "")
+                if customer and customer != "AI-Generated":
+                    st.session_state.project = customer.lower().replace(" ", "-")
+                else:
+                    st.session_state.project = "my-project"
 
         # Generation mode default
         if "generation_mode" not in st.session_state:
@@ -492,14 +500,45 @@ def render_advisor_tab(customer_name: str = "") -> None:
     # --- Chat History ---
     _render_chat_history()
 
-    # --- Show success banner if just applied ---
-    if st.session_state.get("_advisor_applied"):
+    # --- Success banner + auto-navigate to Design Matrix ---
+    if st.session_state.get("_advisor_show_success"):
         st.success(
-            "Recommendation applied! "
-            "Switch to the **Setup** tab to see teams & environments, "
-            "and **Design Matrix** tab to see permissions."
+            "Recommendation applied! Switching to **Design Matrix** tab..."
         )
-        st.session_state["_advisor_applied"] = False
+        st.session_state["_advisor_show_success"] = False
+
+        # Auto-click the Design Matrix tab via JS injection.
+        # Uses components.html which creates an iframe that CAN run JS.
+        # Retries every 200ms for up to 2 seconds in case DOM isn't ready.
+        import streamlit.components.v1 as components
+        components.html(
+            """
+            <script>
+            function clickMatrixTab() {
+                try {
+                    var doc = window.parent.document;
+                    // Target the second tab (index 1 = Design Matrix)
+                    // Tab order: 0=Setup, 1=Design Matrix, 2=Deploy, 3=Reference, 4=Role Designer
+                    var tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+                    if (tabs.length >= 2) {
+                        tabs[1].click();
+                        return true;
+                    }
+                } catch(e) {}
+                return false;
+            }
+            var attempts = 0;
+            var interval = setInterval(function() {
+                attempts++;
+                if (clickMatrixTab() || attempts >= 10) {
+                    clearInterval(interval);
+                }
+            }, 200);
+            </script>
+            """,
+            height=0,
+            scrolling=False,
+        )
 
     # --- Apply Button (if recommendation available) ---
     last_rec = st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY]
@@ -507,8 +546,9 @@ def render_advisor_tab(customer_name: str = "") -> None:
         if st.button("📋 Apply to Matrix", type="primary", use_container_width=False):
             if _apply_recommendation(last_rec, context):
                 st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = None
+                st.session_state["_advisor_show_success"] = True
                 st.session_state["_advisor_applied"] = True
-                st.rerun()  # rerun to show the success banner above
+                st.rerun()
 
     # --- Starter Prompts (only when chat is empty) ---
     selected_starter = None

@@ -1513,7 +1513,7 @@ On rerun, render_advisor_tab() detects _advisor_show_success:
         ▼
 JS snippet executes in browser:
   → Finds all <button data-baseweb="tab"> elements
-  → Clicks the one containing "Design Matrix" text
+  → Clicks tabs[1] (index-based: 0=Setup, 1=Matrix, 2=Deploy, 3=Reference, 4=Role Designer)
         │
         ▼
 Browser switches to Design Matrix tab
@@ -1559,17 +1559,24 @@ def _render_success_and_navigate() -> None:
         """
         <script>
         // Streamlit renders tabs as <button data-baseweb="tab"> elements
-        // in the parent frame. We find the one with "Design Matrix" text
-        // and programmatically click it.
-        const tabs = window.parent.document.querySelectorAll(
-            'button[data-baseweb="tab"]'
-        );
-        for (const tab of tabs) {
-            if (tab.textContent.includes('Design Matrix')) {
-                tab.click();
-                break;
+        // in the parent frame. We target by index because tab text includes
+        // emojis and numbering, making text matching unreliable.
+        // Index 1 = Design Matrix tab (0=Setup, 1=Matrix, 2=Deploy, 3=Reference, 4=Role Designer)
+        function clickTab() {
+            const tabs = window.parent.document.querySelectorAll(
+                'button[data-baseweb="tab"]'
+            );
+            if (tabs.length >= 2) {
+                tabs[1].click();
+                return true;
             }
+            return false;
         }
+        // Retry up to 10 times with 200ms interval (tabs may not be rendered yet)
+        let attempts = 0;
+        const interval = setInterval(() => {
+            if (clickTab() || ++attempts >= 10) clearInterval(interval);
+        }, 200);
         </script>
         """,
         height=0,   # invisible iframe — no UI footprint
@@ -1591,7 +1598,9 @@ Streamlit's `st.tabs()` renders as:
 ```
 
 The selector `button[data-baseweb="tab"]` targets these buttons.
-`textContent.includes('Design Matrix')` matches the second tab.
+We use index-based targeting (`tabs[1]`) instead of text matching because
+tab labels include emojis and numbering (e.g., "📊 2. Design Matrix"),
+making `textContent.includes()` unreliable.
 `.click()` triggers the same behavior as the user clicking.
 
 #### 4. File Changes
@@ -1612,7 +1621,8 @@ FUNCTION handle_apply_click(last_rec, context):
 
   IF success:
     session_state.last_recommendation = None
-    session_state._advisor_show_success = True    ← renamed flag
+    session_state._advisor_applied = True         ← for matrix sync (Matrix tab checks this)
+    session_state._advisor_show_success = True    ← for auto-navigation
     st.rerun()
 ```
 
@@ -1623,14 +1633,18 @@ FUNCTION _render_success_and_navigate():
 
   DISPLAY st.success("Recommendation applied! Switching to Design Matrix tab...")
 
-  # Inject invisible iframe with JS
+  # Inject invisible iframe with JS (index-based tab targeting)
   components.html(
     SCRIPT:
-      tabs = parent.document.querySelectorAll('button[data-baseweb="tab"]')
-      FOR each tab:
-        IF tab.textContent CONTAINS "Design Matrix":
-          tab.click()
-          BREAK
+      FUNCTION clickTab():
+        tabs = parent.document.querySelectorAll('button[data-baseweb="tab"]')
+        # Index 1 = Design Matrix (0=Setup, 1=Matrix, 2=Deploy, 3=Reference, 4=Role Designer)
+        IF tabs.length >= 2:
+          tabs[1].click()
+          RETURN True
+        RETURN False
+      # Retry up to 10 times, 200ms apart
+      interval = setInterval(clickTab, 200)  # clears after success or 10 attempts
     HEIGHT = 0   # invisible
   )
 ```
