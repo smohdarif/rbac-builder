@@ -237,7 +237,7 @@ def _render_env_groups_editor() -> None:
         st.session_state.env_groups,
         num_rows="dynamic",  # Allow adding/removing rows
         use_container_width=True,
-        key="env_groups_editor",
+        key=f"env_groups_editor_v{st.session_state.get('_matrix_version', 0)}",
         column_config={
             "Key": st.column_config.TextColumn(
                 "Key",
@@ -275,7 +275,7 @@ def _render_teams_editor() -> None:
         st.session_state.teams,
         num_rows="dynamic",  # Allow adding/removing rows
         use_container_width=True,
-        key="teams_editor",
+        key=f"teams_editor_v{st.session_state.get('_matrix_version', 0)}",
         column_config={
             "Key": st.column_config.TextColumn(
                 "Key",

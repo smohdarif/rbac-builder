@@ -38,6 +38,7 @@ from ui import (
     render_matrix_tab,
     render_deploy_tab,
     render_reference_tab,
+    render_advisor_tab,
 )
 
 # =============================================================================
@@ -81,10 +82,13 @@ with st.sidebar:
     st.header("⚙️ Settings")
 
     # Customer name input
+    # _advisor_customer_name is set by the RBAC Advisor's Apply button
+    default_customer = st.session_state.get("_advisor_customer_name", "")
     customer_name = st.text_input(
         "Customer Name",
+        value=default_customer,
         placeholder="Enter customer name...",
-        help="This will be used to save your configuration"
+        help="This will be used to save your configuration",
     )
 
     # Mode selection
@@ -116,11 +120,12 @@ with st.sidebar:
 # =============================================================================
 # Create four tabs - each rendered by its own module
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 1. Setup",
     "📊 2. Design Matrix",
     "🚀 3. Deploy",
-    "📚 4. Reference Guide"
+    "📚 4. Reference Guide",
+    "🤖 5. Role Designer AI",
 ])
 
 # =============================================================================
@@ -146,6 +151,12 @@ with tab3:
 # =============================================================================
 with tab4:
     render_reference_tab()
+
+# =============================================================================
+# TAB 5: RBAC Advisor
+# =============================================================================
+with tab5:
+    render_advisor_tab(customer_name=customer_name)
 
 # =============================================================================
 # FOOTER

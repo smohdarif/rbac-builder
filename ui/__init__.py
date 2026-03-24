@@ -27,6 +27,7 @@ from .matrix_tab import (
     ENV_PERMISSIONS,
 )
 from .deploy_tab import render_deploy_tab, build_config_from_session
+from .advisor_tab import render_advisor_tab
 from .reference_tab import (
     render_reference_tab,
     HIERARCHY_DIAGRAM,
@@ -45,6 +46,7 @@ __all__ = [
     "render_setup_tab",
     "render_matrix_tab",
     "render_deploy_tab",
+    "render_advisor_tab",
     "render_reference_tab",
     # Matrix helpers (for testing)
     "create_default_project_matrix",

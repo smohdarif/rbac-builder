@@ -9,3 +9,6 @@ requests>=2.31.0
 
 # Data handling
 pandas>=2.0.0
+
+# AI Advisor (Phase 27) — Gemini-powered RBAC recommendations
+google-genai>=1.0.0

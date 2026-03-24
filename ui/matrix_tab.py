@@ -334,6 +334,11 @@ def _render_project_matrix_with_checkboxes() -> None:
         return
 
     # Initialise / sync matrix
+    # If the AI Advisor just populated the matrix, use its teams as the
+    # source of truth (the Setup data_editor may lag behind by one rerun).
+    advisor_just_applied = st.session_state.get("_advisor_applied", False)
+
+
     if "project_matrix" not in st.session_state or \
             not isinstance(st.session_state.project_matrix, pd.DataFrame):
         st.session_state.project_matrix = create_default_project_matrix(team_names)
@@ -342,12 +347,24 @@ def _render_project_matrix_with_checkboxes() -> None:
             st.session_state.project_matrix, PROJECT_PERMISSIONS
         )
 
-    matrix_teams = st.session_state.project_matrix["Team"].tolist() \
-        if "Team" in st.session_state.project_matrix.columns else []
-    if set(matrix_teams) != set(team_names):
-        st.session_state.project_matrix = sync_project_matrix(
-            st.session_state.project_matrix, team_names
-        )
+    if advisor_just_applied:
+        # Advisor wrote the matrix — trust it, update team_names to match
+        team_names = st.session_state.project_matrix["Team"].tolist() \
+            if "Team" in st.session_state.project_matrix.columns else team_names
+        # Also update Setup tab's teams to match
+        if team_names:
+            st.session_state.teams = pd.DataFrame({
+                "Key": [n.lower().replace(" ", "-") for n in team_names],
+                "Name": team_names,
+                "Description": ["" for _ in team_names],
+            })
+    else:
+        matrix_teams = st.session_state.project_matrix["Team"].tolist() \
+            if "Team" in st.session_state.project_matrix.columns else []
+        if set(matrix_teams) != set(team_names):
+            st.session_state.project_matrix = sync_project_matrix(
+                st.session_state.project_matrix, team_names
+            )
 
     # ==========================================================================
     # LESSON: st.tabs() with dynamic tab names from a dict
@@ -360,6 +377,9 @@ def _render_project_matrix_with_checkboxes() -> None:
     tab_labels  = group_names + ["📋 Summary"]
     tabs        = st.tabs(tab_labels)
 
+    # Version suffix forces fresh widget keys after Advisor Apply
+    v = st.session_state.get("_matrix_version", 0)
+
     # Render one tab per permission group
     for tab, (group_name, perms) in zip(tabs[:-1], PROJECT_PERMISSION_GROUPS.items()):
         with tab:
@@ -370,7 +390,7 @@ def _render_project_matrix_with_checkboxes() -> None:
                 extra_col_values=[],
                 get_fn=_get_proj_value,
                 set_fn=_set_proj_value,
-                key_prefix=f"proj_{group_name}",
+                key_prefix=f"proj_v{v}_{group_name}",
             )
 
     # Summary tab — read-only overview of all project permissions
@@ -404,8 +424,27 @@ def _render_env_matrix_with_checkboxes() -> None:
     """
     st.subheader("🌍 Per-Environment Permissions")
 
-    env_group_keys = [k for k in st.session_state.env_groups["Key"].tolist() if k]
-    team_names     = [n for n in st.session_state.teams["Name"].tolist() if n]
+    # When the Advisor just applied, the Setup tab's data_editor may still
+    # have stale env_groups. Read env keys from the env_matrix itself
+    # (which has the correct data) and also fix env_groups to match.
+    advisor_applied_env = st.session_state.get("_advisor_applied", False)
+
+    if advisor_applied_env and "env_matrix" in st.session_state \
+            and "Environment" in st.session_state.env_matrix.columns:
+        # Trust the env_matrix — it has the correct environments
+        env_group_keys = sorted(st.session_state.env_matrix["Environment"].unique().tolist())
+        # Also fix env_groups so the rest of the app is consistent
+        is_crit = lambda k: k.lower() in ("production", "prod")
+        st.session_state.env_groups = pd.DataFrame({
+            "Key": env_group_keys,
+            "Requires Approvals": [is_crit(k) for k in env_group_keys],
+            "Critical": [is_crit(k) for k in env_group_keys],
+            "Notes": ["" for _ in env_group_keys],
+        })
+    else:
+        env_group_keys = [k for k in st.session_state.env_groups["Key"].tolist() if k]
+
+    team_names = [n for n in st.session_state.teams["Name"].tolist() if n]
 
     if not team_names or not env_group_keys:
         st.warning("Define teams and environment groups in the Setup tab first.")
@@ -436,6 +475,8 @@ def _render_env_matrix_with_checkboxes() -> None:
     tab_labels  = group_names + ["📋 Summary"]
     tabs        = st.tabs(tab_labels)
 
+    v_env = st.session_state.get("_matrix_version", 0)
+
     for tab, (group_name, perms) in zip(tabs[:-1], ENV_PERMISSION_GROUPS.items()):
         with tab:
             _render_group_checkboxes(
@@ -445,7 +486,7 @@ def _render_env_matrix_with_checkboxes() -> None:
                 extra_col_values=env_group_keys,
                 get_fn=_get_env_value,
                 set_fn=_set_env_value,
-                key_prefix=f"env_{group_name}",
+                key_prefix=f"env_v{v_env}_{group_name}",
             )
 
     with tabs[-1]:
