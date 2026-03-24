@@ -564,6 +564,105 @@ PROJECT: mobile-app
         """)
 
 
+def _render_sage_guide() -> None:
+    """Render Sage (Role Designer AI) guide section."""
+    with st.expander("🤖 Sage — Role Designer AI Guide", expanded=False):
+        st.markdown("""
+### What Is Sage?
+
+Sage is a chat-powered AI assistant that helps you design LaunchDarkly custom roles.
+Describe your teams, environments, and access needs in plain English — Sage recommends
+a complete permission matrix based on LaunchDarkly best practices.
+
+> *"Ask Vega about your flags, ask Sage about your roles."*
+
+**Key capabilities:**
+- Recommends project-level and environment-level permissions per team
+- Explains the reasoning behind each recommendation
+- Flags anti-patterns (e.g., giving everyone Admin, missing View Project)
+- Handles follow-up adjustments ("add observability for Developer")
+- Outputs a structured JSON that populates the Design Matrix with one click
+        """)
+
+        st.markdown("""
+### Quick Start
+
+1. Go to **Tab 4: Sage (Role Designer AI)**
+2. Click a **starter prompt** or type your own scenario
+3. Review the recommendation, then click **Apply to Matrix**
+
+Sage populates both the **Setup tab** (teams, environments) and
+the **Design Matrix tab** (permission checkboxes) automatically.
+        """)
+
+        st.markdown("""
+### Starter Prompts
+
+| Prompt | Best For |
+|--------|----------|
+| **Standard S2 — 5 Teams, 4 Environments** | Full PS engagement pattern with approval workflows |
+| **Startup — Small Team, 2 Environments** | Dev + Admin, simple separation |
+| **Enterprise — with Observability** | Frontend, Backend (AI configs), QA, SRE |
+| **With Contractors — Internal + External** | Internal devs + gated contractor access |
+| **Experimentation Focus — A/B Testing** | Data Scientists, experiments, metrics |
+| **Just Tell Me Best Practices** | General guidance, no specific setup |
+        """)
+
+        st.markdown("""
+### How Apply to Matrix Works
+
+When you click **Apply to Matrix**, Sage:
+
+1. **Creates teams** in the Setup tab (if not already configured)
+2. **Creates environments** with critical/non-critical flags inferred from names
+3. **Sets the project key** (from your description or defaults to "my-project")
+4. **Populates the permission matrix** — every checkbox reflects the recommendation
+5. **Sets customer name** in the sidebar (defaults to "AI-Generated")
+
+You can then review and adjust any checkbox manually before deploying.
+        """)
+
+        st.markdown("""
+### Tips for Better Results
+
+**Do:**
+- **Name your teams by function** — "Developer", "QA", "SRE" (not "Team A", "Team B")
+- **Specify which environments are critical** — "production is critical, test is not"
+- **Describe what each team does** — "QA tests flags in staging, SRE handles production incidents"
+- **Ask follow-up questions** — "add observability for Developer", "remove Archive from QA"
+- **Use the Setup tab first** if you already know your teams/envs — Sage reads them automatically
+
+**Don't:**
+- Ask non-LaunchDarkly topics (AWS IAM, Okta, etc.) — Sage will politely decline
+- Ask for code generation or debugging help — Sage is an RBAC specialist only
+        """)
+
+        st.markdown("""
+### How It Works Behind the Scenes
+
+- **Gemini 2.5 Flash** — Google's fast, cost-effective LLM
+- **Embedded knowledge base** — Team archetypes, environment patterns, permission reference,
+  anti-patterns curated from real PS engagements (sa-demo, Epassi, Voya, S2 template)
+- **Structured output** — Every recommendation includes a JSON block that the app parses
+- **Scope guardrails** — Sage only answers LaunchDarkly-related questions
+
+The API key is managed by the app admin — SAs don't need their own key.
+        """)
+
+        st.markdown("""
+### Limitations
+
+- **No deployment** — Sage recommends permissions but doesn't deploy them.
+  Use the Deploy tab for that.
+- **No real-time LD data** — Sage doesn't connect to your LaunchDarkly account.
+  It works from the knowledge base + your descriptions.
+- **Recommendations are starting points** — Always review and adjust the matrix
+  before deploying. Sage defaults to least privilege.
+- **One conversation per session** — Refreshing the page clears chat history.
+  Use Apply to Matrix before refreshing.
+        """)
+
+
 def _render_upcoming_features() -> None:
     """Render upcoming features roadmap section."""
     with st.expander("🗺️ Upcoming Features & Roadmap", expanded=False):
@@ -642,5 +741,6 @@ def render_reference_tab() -> None:
     _render_ai_configs()
     _render_observability()
     _render_permission_scopes()
+    _render_sage_guide()
     _render_upcoming_features()
     _render_documentation_links()
