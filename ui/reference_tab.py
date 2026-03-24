@@ -671,7 +671,6 @@ def _render_upcoming_features() -> None:
 
 | Phase | Feature | Priority | What it adds |
 |-------|---------|----------|-------------|
-| **16** | Terraform Export | 🔴 High | Generate `.tf` files for ps-terraform-private delivery |
 | **17** | Global / Account-Level Roles | 🔴 High | `view_teams`, `manage_personal_access_tokens` in every team |
 | **18** | LD Views Support | 🔴 High | RBAC for LaunchDarkly saved flag filter Views |
 | **19** | Manage Context Kinds | 🔴 High | Standalone Context Kinds column in matrix |
@@ -684,16 +683,17 @@ def _render_upcoming_features() -> None:
 
 ---
 
-### Current Coverage (Phases 1–15)
+### Implemented (Phases 1–27)
 
 - ✅ Full permission matrix (Flags, Metrics, AI Configs, Observability)
 - ✅ Role attribute pattern (sa-demo compatible)
 - ✅ Client delivery ZIP with `deploy.py` script
 - ✅ Markdown deployment guide
 - ✅ Direct LD API deployment (Connected mode)
-- ✅ Tab-based grouped UI
-
-📄 **Full roadmap:** See `docs/ROADMAP.md` in this project.
+- ✅ Tab-based grouped UI (Flag Lifecycle, Metrics, AI Configs, Observability)
+- ✅ Terraform Export — standalone `.tf` files for `terraform apply` (Phase 16)
+- ✅ Active User Counter — live session count in sidebar (Phase 26)
+- ✅ Sage (Role Designer AI) — Gemini-powered RBAC chat with Apply to Matrix (Phase 27)
         """)
 
 
