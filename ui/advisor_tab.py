@@ -2,7 +2,7 @@
 Advisor Tab — AI-Powered RBAC Recommendations
 ================================================
 
-This module renders Tab 5: RBAC Advisor.
+This module renders Tab 4: RBAC Advisor.
 
 Responsibilities:
 - Chat interface with Gemini-powered AI
@@ -461,7 +461,7 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
 
 def render_advisor_tab(customer_name: str = "") -> None:
     """
-    Main entry point for Tab 5: RBAC Advisor.
+    Main entry point for Tab 4: RBAC Advisor.
     Called from app.py.
     """
     _initialize_session_state()

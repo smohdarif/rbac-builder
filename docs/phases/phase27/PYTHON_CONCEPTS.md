@@ -562,7 +562,7 @@ components.html("""
 if (tabs[i].innerText.indexOf('Design Matrix') !== -1) { ... }
 
 // GOOD — target by position (more reliable)
-// Tab order: 0=Setup, 1=Design Matrix, 2=Deploy, 3=Reference, 4=Role Designer
+// Tab order: 0=Setup, 1=Design Matrix, 2=Deploy, 3=Role Designer, 4=Reference
 tabs[1].click();
 ```
 
@@ -687,10 +687,10 @@ for msg in messages:
 
 ### The concept
 
-Streamlit reruns ALL tabs on every interaction. When the Advisor (Tab 5) writes data that the Matrix tab (Tab 2) needs to read differently, we use session_state flags to coordinate:
+Streamlit reruns ALL tabs on every interaction. When the Advisor (Tab 4) writes data that the Matrix tab (Tab 2) needs to read differently, we use session_state flags to coordinate:
 
 ```python
-# Tab 5 (Advisor) — sets flags during Apply
+# Tab 4 (Advisor) — sets flags during Apply
 st.session_state["_advisor_applied"] = True       # Matrix tab: skip stale sync
 st.session_state["_advisor_show_success"] = True   # Advisor tab: show banner + navigate
 st.session_state["_matrix_version"] = version + 1  # All tabs: fresh widget keys
@@ -705,7 +705,7 @@ if st.session_state.get("_advisor_applied"):
 ### Flag lifecycle
 
 ```
-Apply clicked (Tab 5)
+Apply clicked (Tab 4)
   → _advisor_applied = True
   → _advisor_show_success = True
   → _matrix_version += 1
@@ -714,7 +714,7 @@ Apply clicked (Tab 5)
 Rerun starts:
   Tab 1 (Setup):  reads _matrix_version → versioned data_editor keys
   Tab 2 (Matrix): reads _advisor_applied → skips stale sync, trusts data
-  Tab 5 (Advisor): reads _advisor_show_success → shows banner + JS navigate
+  Tab 4 (Advisor): reads _advisor_show_success → shows banner + JS navigate
                    sets _advisor_show_success = False (consumed)
 ```
 

@@ -18,7 +18,7 @@ Today, the SA needs to already know LaunchDarkly RBAC best practices, the princi
 
 ## The Solution
 
-A new **Tab 5: Role Designer AI** where the SA has a chat conversation with an AI that:
+A new **Tab 4: Role Designer AI** where the SA has a chat conversation with an AI that:
 
 1. **Understands** the customer's team structure, environments, and goals
 2. **Recommends** a concrete permission matrix based on LD RBAC best practices
@@ -128,9 +128,9 @@ The AI returns both:
 |------|--------|
 | `services/ai_advisor.py` | CREATED — `RBACAdvisor` class (Gemini client via `google.genai`, system prompt, structured output) |
 | `core/rbac_knowledge.py` | CREATED — Embedded RBAC best practices knowledge base |
-| `ui/advisor_tab.py` | CREATED — Tab 5 "Role Designer AI" chat UI with context panel, versioned widget keys, thinking indicator, collapsible JSON |
+| `ui/advisor_tab.py` | CREATED — Tab 4 "Role Designer AI" chat UI with context panel, versioned widget keys, thinking indicator, collapsible JSON |
 | `ui/__init__.py` | UPDATED — Added `render_advisor_tab` export |
-| `app.py` | UPDATED — Added Tab 5 |
+| `app.py` | UPDATED — Added Tab 4 |
 | `.streamlit/secrets.toml` | ADD `GEMINI_API_KEY` (not committed to git) |
 | `requirements.txt` | UPDATED — Added `google-genai>=1.0.0` |
 | `tests/test_ai_advisor.py` | CREATED — 20 test cases |
@@ -145,7 +145,7 @@ The AI returns both:
 - [x] `services/ai_advisor.py` created — Gemini integration via `google.genai` SDK + structured output
 - [x] `ui/advisor_tab.py` created — chat UI + context panel + apply button + versioned widget keys + thinking indicator + collapsible JSON
 - [x] `ui/__init__.py` updated
-- [x] `app.py` updated — Tab 5 "Role Designer AI"
+- [x] `app.py` updated — Tab 4 "Role Designer AI"
 - [x] `requirements.txt` updated — `google-genai>=1.0.0`
 - [x] `tests/test_ai_advisor.py` created — all 20 tests passing
 - [x] Manual test: full conversation → apply to matrix → verify matrix populated

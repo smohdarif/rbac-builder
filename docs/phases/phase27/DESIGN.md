@@ -891,7 +891,7 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
 
 def render_advisor_tab(customer_name: str = "") -> None:
     """
-    Main entry point for Tab 5: RBAC Advisor.
+    Main entry point for Tab 4: RBAC Advisor.
     Called from app.py.
     """
     _initialize_session_state()
@@ -1022,12 +1022,12 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 1. Setup",
     "📊 2. Design Matrix",
     "🚀 3. Deploy",
-    "📚 4. Reference Guide",
-    "🤖 5. Role Designer AI",
+    "🤖 4. Role Designer AI",
+    "📚 5. Reference Guide",
 ])
 
-# Add tab5 block
-with tab5:
+# Add tab4 block
+with tab4:
     render_advisor_tab(customer_name=customer_name)
 ```
 
@@ -1468,7 +1468,7 @@ THEN:  raises AdvisorError("Context not set...")
 | 12 | Create `_apply_recommendation()` | `ui/advisor_tab.py` |
 | 13 | Create `render_advisor_tab()` | `ui/advisor_tab.py` |
 | 14 | Export from `ui/__init__.py` | `ui/__init__.py` |
-| 15 | Add Tab 5 to `app.py` | `app.py` |
+| 15 | Add Tab 4 to `app.py` | `app.py` |
 | 16 | Add `google-genai>=1.0.0` to `requirements.txt` | `requirements.txt` |
 | 17 | Write all 20 tests | `tests/test_ai_advisor.py` |
 | 18 | Run full test suite | `pytest tests/ -v` |
