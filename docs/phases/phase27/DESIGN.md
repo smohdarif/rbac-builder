@@ -823,9 +823,16 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
             st.session_state.env_groups = pd.DataFrame(env_rows)
             env_df = st.session_state.env_groups
 
-        # Project key — use context if available
-        if not st.session_state.get("project") and context.get("project_key"):
-            st.session_state.project = context["project_key"]
+        # Project key — use context if available, else derive from customer name
+        if not st.session_state.get("project"):
+            if context.get("project_key"):
+                st.session_state.project = context["project_key"]
+            else:
+                customer = st.session_state.get("_advisor_customer_name", "")
+                if customer and customer != "AI-Generated":
+                    st.session_state.project = customer.lower().replace(" ", "-")
+                else:
+                    st.session_state.project = "my-project"
 
         # Generation mode — default to role_attributes
         if "generation_mode" not in st.session_state:
@@ -1124,9 +1131,14 @@ FUNCTION apply_recommendation(recommendation, context):
       Notes:              empty strings
     })
 
-  # Project key — use context if available
-  IF session_state.project is empty AND context has project_key:
-    session_state.project = context["project_key"]
+  # Project key — use context if available, else derive from customer name
+  IF session_state.project is empty:
+    IF context has project_key:
+      session_state.project = context["project_key"]
+    ELSE IF customer_name exists AND != "AI-Generated":
+      session_state.project = customer_name.lower().replace(" ", "-")  # "Voya" → "voya"
+    ELSE:
+      session_state.project = "my-project"  # safe fallback
 
   # Generation mode — default to role_attributes
   IF generation_mode not set:
@@ -1502,7 +1514,8 @@ SA clicks "Apply to Matrix"
         ▼
 _apply_recommendation() runs
   → writes teams, envs, matrices
-  → sets _advisor_show_success = True
+  → sets _advisor_applied = True        (matrix sync)
+  → sets _advisor_show_success = True   (auto-navigation)
   → st.rerun()
         │
         ▼
@@ -1686,8 +1699,9 @@ THEN:  _render_success_and_navigate() is called
 ```
 GIVEN: The injected HTML string
 THEN:  Contains 'button[data-baseweb="tab"]' selector
-       Contains 'Design Matrix' text match
+       Uses index-based targeting: tabs[1] (not text matching)
        Contains '.click()' call
+       Retries up to 10 times with 200ms interval
        height=0 (invisible iframe)
 ```
 
@@ -1708,6 +1722,25 @@ THEN:  session_state._advisor_show_success is False or absent
        No JS injection occurs
 ```
 
+#### TC-NAV-06: Auto-navigate uses index-based tab targeting
+```
+GIVEN: The injected JS snippet
+THEN:  Targets tabs[1] (index-based, not text-based)
+       Does NOT use text matching (unreliable with emoji labels)
+       Retries up to 10 times with 200ms interval
+```
+
+#### TC-NAV-07: Default project key generated when not provided
+```
+GIVEN: No project key in Setup or context, customer_name = "Acme Corp"
+WHEN:  _apply_recommendation() runs
+THEN:  session_state.project = "acme-corp"
+
+GIVEN: No project key, no customer name
+WHEN:  _apply_recommendation() runs
+THEN:  session_state.project = "my-project"
+```
+
 ### Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -1716,6 +1749,7 @@ THEN:  session_state._advisor_show_success is False or absent
 | `window.parent.document` blocked by CSP | Very low (same origin) | JS fails silently | Banner fallback |
 | Multiple tabs match "Design Matrix" text | None (unique text) | N/A | — |
 | JS executes before tab content renders | Low | Tab switches but content may flash | Streamlit re-renders instantly |
+| Tab text matching fails due to emoji/numbering in labels | **Happened** | JS never clicks the tab | Fixed: switched to index-based targeting (`tabs[1]`) |
 
 ### Python Concepts
 
@@ -1723,7 +1757,7 @@ THEN:  session_state._advisor_show_success is False or absent
 |---------|---------|
 | `streamlit.components.v1.html()` | Injecting raw HTML/JS into the page |
 | `window.parent.document` | Accessing the parent frame's DOM from an iframe |
-| `querySelectorAll` + `textContent` | Finding specific tab buttons by their label |
+| `querySelectorAll` + index targeting | Finding tab buttons by position (index-based, not text-based) |
 | `height=0` | Making the injected iframe invisible |
 | Graceful degradation | JS failure doesn't break the app |
 
