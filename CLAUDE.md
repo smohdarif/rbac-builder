@@ -329,7 +329,7 @@ pytest tests/ --cov=. --cov-report=html
 | 24 | `services/payload_builder.py` | Flag/Segment Subset Scoping | [📄 Phase 24](docs/phases/phase24/) | 📋 Planned |
 | 25 | `core/ld_actions.py` | Account-Level Admin Roles | [📄 Phase 25](docs/phases/phase25/) | 📋 Planned |
 | 26 | `core/session_tracker.py` | Active User Counter | [📄 Phase 26](docs/phases/phase26/) | ✅ `test_session_tracker.py` |
-| 27 | `ui/advisor_tab.py` | Role Designer AI (Gemini Chat) | [📄 Phase 27](docs/phases/phase27/) | ✅ `test_ai_advisor.py` |
+| 27 | `ui/advisor_tab.py` | Sage — Role Designer AI (Gemini Chat) | [📄 Phase 27](docs/phases/phase27/) | ✅ `test_ai_advisor.py` |
 
 ## Running the App
 

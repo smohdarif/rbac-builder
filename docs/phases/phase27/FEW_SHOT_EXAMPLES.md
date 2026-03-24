@@ -1,6 +1,6 @@
-# Phase 27: Few-Shot Examples for the RBAC Advisor
+# Phase 27: Few-Shot Examples for Sage (Role Designer AI)
 
-These examples are embedded in the system prompt to teach the AI how to reason through
+These examples are embedded in Sage's system prompt to teach it how to reason through
 RBAC design and produce correct JSON output. Each example is grounded in **real data**
 from our codebase:
 
@@ -23,7 +23,7 @@ or future permissions appear in these examples.
 
 ## Currently Supported Permissions
 
-From `core/ld_actions.py` — the AI must ONLY use these exact names:
+From `core/ld_actions.py` — Sage must ONLY use these exact names:
 
 **Project-scoped:**
 Create Flags, Update Flags, Archive Flags, Update Client Side Availability,

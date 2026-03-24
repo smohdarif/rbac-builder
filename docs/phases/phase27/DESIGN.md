@@ -1,4 +1,4 @@
-# Phase 27: Design Document — RBAC Advisor (AI Chat Tab)
+# Phase 27: Design Document — Sage (Role Designer AI Chat Tab)
 
 | Field | Value |
 |-------|-------|
@@ -25,7 +25,7 @@
 
 ### What Are We Building and Why?
 
-SAs need tribal knowledge to design RBAC — which teams get which permissions, why production needs approvals, when to use deny rules. This knowledge exists in LD docs, PS best practices, and SA experience. We're putting an AI advisor in the app that:
+SAs need tribal knowledge to design RBAC — which teams get which permissions, why production needs approvals, when to use deny rules. This knowledge exists in LD docs, PS best practices, and SA experience. We're putting Sage (the Role Designer AI) in the app that:
 
 1. Reads the customer's setup (teams, environments) from session state
 2. Accepts natural language descriptions of access needs
@@ -37,10 +37,10 @@ SAs need tribal knowledge to design RBAC — which teams get which permissions, 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         RBAC ADVISOR FLOW                            │
+│                         SAGE — ROLE DESIGNER AI FLOW                  │
 │                                                                      │
 │  ┌────────────┐     ┌──────────────────┐     ┌───────────────────┐  │
-│  │ Setup Tab  │────►│  session_state    │────►│  Advisor Tab      │  │
+│  │ Setup Tab  │────►│  session_state    │────►│  Sage Tab         │  │
 │  │ (teams,    │     │  teams, envs,     │     │  (reads context)  │  │
 │  │  envs,     │     │  project          │     │                   │  │
 │  │  project)  │     └──────────────────┘     │  Chat UI          │  │
@@ -91,7 +91,7 @@ SAs need tribal knowledge to design RBAC — which teams get which permissions, 
 | Conversational chat | Multi-turn chat with st.chat_message / st.chat_input |
 | RBAC knowledge base | Embedded best practices (team archetypes, environment patterns, LD actions) |
 | Structured recommendations | AI returns both markdown (display) and JSON (apply) |
-| Apply to matrix | One-click button writes recommendations to project_matrix and env_matrix |
+| Apply to matrix | One-click button writes Sage's recommendations to project_matrix and env_matrix |
 | Streaming responses | Token-by-token streaming for responsive UX |
 | Chat history | Full conversation preserved in session_state |
 
@@ -160,10 +160,10 @@ This is the **system prompt context** — not a database, just a carefully curat
 
 ```python
 """
-RBAC Knowledge Base for the AI Advisor.
+RBAC Knowledge Base for Sage (Role Designer AI).
 
 This module contains curated LaunchDarkly RBAC best practices that are
-injected into the AI's system prompt. The AI uses this knowledge to
+injected into Sage's system prompt. Sage uses this knowledge to
 ground its recommendations in real LD patterns.
 """
 
@@ -278,7 +278,7 @@ def build_system_prompt(
     available_env_permissions: list[str],
 ) -> str:
     """
-    Build the complete system prompt for the AI advisor.
+    Build the complete system prompt for Sage.
 
     Combines:
     - Role definition (you are an RBAC advisor)
@@ -295,7 +295,7 @@ def build_system_prompt(
 
     team_text = "\n".join(f"  - {t}" for t in teams) if teams else "  - (none configured yet)"
 
-    return f"""You are an expert LaunchDarkly RBAC Advisor built into the RBAC Builder tool.
+    return f"""You are Sage, the Role Designer AI built into the RBAC Builder tool for LaunchDarkly.
 Your job is to recommend custom role configurations based on the customer's team structure
 and LaunchDarkly best practices.
 
@@ -366,7 +366,7 @@ Use the exact team names and environment keys from the customer context above.
 
 ```python
 """
-AI Advisor Service — Gemini-powered RBAC recommendations.
+Sage (Role Designer AI) Service — Gemini-powered RBAC recommendations.
 """
 
 import json
@@ -523,7 +523,7 @@ class RBACAdvisor:
 
 ```python
 """
-Advisor Tab — AI-powered RBAC recommendations.
+Sage Tab — AI-powered RBAC recommendations.
 """
 
 import streamlit as st
@@ -766,7 +766,7 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
     Phase A — Populate Setup (Step 1):
       If teams/envs/project aren't configured yet, create them from the
       recommendation's team names and environment keys. This lets SAs start
-      on the Advisor tab without configuring Setup first.
+      on the Sage tab without configuring Setup first.
 
     Phase B — Populate Matrix (Step 2):
       Write project_matrix and env_matrix DataFrames from the recommendation.
@@ -891,12 +891,12 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
 
 def render_advisor_tab(customer_name: str = "") -> None:
     """
-    Main entry point for Tab 4: RBAC Advisor.
+    Main entry point for Tab 4: Sage (Role Designer AI).
     Called from app.py.
     """
     _initialize_session_state()
 
-    st.header("🤖 Role Designer AI")
+    st.header("🤖 Sage — Role Designer AI")
     st.markdown(
         "Describe your teams and access needs — "
         "get an instant RBAC blueprint powered by AI."
@@ -907,7 +907,7 @@ def render_advisor_tab(customer_name: str = "") -> None:
 
     if not api_key:
         st.info(
-            "RBAC Advisor requires configuration. "
+            "Sage requires configuration. "
             "Set the `GEMINI_API_KEY` environment variable or add it to "
             "`.streamlit/secrets.toml`."
         )
@@ -948,7 +948,7 @@ def render_advisor_tab(customer_name: str = "") -> None:
             if st.button("📋 Apply to Matrix", type="primary"):
                 if _apply_recommendation(last_rec, context):
                     # Set _advisor_applied flag — Matrix tab checks this
-                    # to skip stale env_groups sync and trust Advisor's data
+                    # to skip stale env_groups sync and trust Sage's data
                     st.session_state["_advisor_applied"] = True
                     st.session_state["_advisor_apply_success"] = True
                     st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = None
@@ -1004,7 +1004,7 @@ def render_advisor_tab(customer_name: str = "") -> None:
                 if recommendation:
                     st.session_state[ADVISOR_LAST_RECOMMENDATION_KEY] = recommendation
                     # Set _advisor_applied flag — Matrix tab checks this
-                    # to skip stale sync and trust Advisor's data
+                    # to skip stale sync and trust Sage's data
                     st.rerun()
 
             except AdvisorError as e:
@@ -1022,7 +1022,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 1. Setup",
     "📊 2. Design Matrix",
     "🚀 3. Deploy",
-    "🤖 4. Role Designer AI",
+    "🤖 4. Sage (Role Designer AI)",
     "📚 5. Reference Guide",
 ])
 
@@ -1046,7 +1046,7 @@ google-genai>=1.0.0
 ```
 FUNCTION build_system_prompt(teams, environments, project_key, project_perms, env_perms):
 
-  role_definition = "You are an expert LaunchDarkly RBAC Advisor..."
+  role_definition = "You are Sage, the Role Designer AI..."
 
   customer_context = FORMAT teams, envs, project into readable text
 
@@ -1167,7 +1167,7 @@ FUNCTION apply_recommendation(recommendation, context):
 ```
 
 **What this means for the SA:**
-- SA can start on the Advisor tab with ZERO setup — just chat
+- SA can start on the Sage tab with ZERO setup — just chat
 - Click "Apply" → Setup tab gets teams + environments auto-populated
 - Matrix tab gets permissions pre-filled from the recommendation
 - SA reviews both tabs and adjusts anything before deploying
@@ -1280,7 +1280,7 @@ FUNCTION render_advisor_tab():
 
 ## Streamlit Widget Caching Workaround
 
-The biggest implementation challenge was Streamlit's widget value caching. When the Advisor's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), Streamlit's checkbox widgets in the Matrix tab still hold their old `False` values from a previous render. The DataFrame data is correct in `session_state`, but widgets override it on the next rerun because Streamlit caches widget values by key.
+The biggest implementation challenge was Streamlit's widget value caching. When Sage's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), Streamlit's checkbox widgets in the Matrix tab still hold their old `False` values from a previous render. The DataFrame data is correct in `session_state`, but widgets override it on the next rerun because Streamlit caches widget values by key.
 
 ### The Fix: Version-Based Widget Keys
 
@@ -1314,7 +1314,7 @@ Even with versioned keys, the Setup tab's `data_editor` would restore default `e
 
 ```python
 if st.session_state.get("_advisor_applied"):
-    # Trust Advisor's data — bypass stale env_groups
+    # Trust Sage's data — bypass stale env_groups
     env_keys = st.session_state.env_matrix["Environment"].unique().tolist()
 else:
     env_keys = st.session_state.env_groups["Key"].tolist()
@@ -1522,7 +1522,7 @@ _apply_recommendation() runs
   → st.rerun()
         │
         ▼
-On rerun, render_advisor_tab() detects _advisor_show_success:
+On rerun, render_advisor_tab() detects _advisor_show_success (Sage tab):
   1. Fires st.balloons() (confetti animation)
   2. Shows green success banner with tab name
   3. Clears the flag
@@ -1665,9 +1665,9 @@ THEN:  session_state.project = "my-project"
 
 #### What Are We Building and Why?
 
-The Reference Guide (Tab 5) has comprehensive RBAC documentation but nothing about the Role Designer AI itself. SAs need to understand:
-- What the AI can and can't do
-- How to get the best results
+The Reference Guide (Tab 5) has comprehensive RBAC documentation but nothing about Sage itself. SAs need to understand:
+- What Sage can and can't do
+- How to get the best results from Sage
 - What the starter prompts cover
 - How Apply to Matrix works
 - What happens behind the scenes (system prompt, knowledge base, structured output)
@@ -1690,7 +1690,7 @@ Reference Guide Tab (Tab 5)
 ├── 🔭 Observability Permissions (existing)
 ├── 🔐 Permission Scopes (existing)
 ├──────────────────────────────────────────
-├── 🤖 Role Designer AI Guide (NEW)         ← added here
+├── 🤖 Sage (Role Designer AI) Guide (NEW)   ← added here
 │   ├── What It Does
 │   ├── Quick Start (3 steps)
 │   ├── Starter Prompts Explained
@@ -1703,7 +1703,7 @@ Reference Guide Tab (Tab 5)
 └── 🔗 Official Documentation (existing)
 ```
 
-The new section is placed **after the RBAC content** (which the AI references) and **before the roadmap** — so SAs learn RBAC first, then learn how to use the AI, then see what's coming next.
+The new section is placed **after the RBAC content** (which Sage references) and **before the roadmap** — so SAs learn RBAC first, then learn how to use Sage, then see what's coming next.
 
 ### Detailed Low-Level Design (DLD)
 
@@ -1712,10 +1712,12 @@ The new section is placed **after the RBAC content** (which the AI references) a
 ```python
 ROLE_DESIGNER_AI_GUIDE = {
     "what_it_does": """
-        The Role Designer AI is a chat-powered assistant that helps you design
+        Sage is a chat-powered Role Designer AI that helps you design
         LaunchDarkly custom roles. Describe your teams, environments, and access
-        needs in plain English — the AI recommends a complete permission matrix
+        needs in plain English — Sage recommends a complete permission matrix
         based on LaunchDarkly best practices.
+
+        *Ask Vega about your flags, ask Sage about your roles.*
 
         **Key capabilities:**
         - Recommends project-level and environment-level permissions per team
@@ -1726,11 +1728,11 @@ ROLE_DESIGNER_AI_GUIDE = {
     """,
 
     "quick_start": """
-        1. Go to **Tab 4: Role Designer AI**
+        1. Go to **Tab 4: Sage (Role Designer AI)**
         2. Click a **starter prompt** or type your own scenario
         3. Review the recommendation, then click **Apply to Matrix**
 
-        The AI populates both the **Setup tab** (teams, environments) and
+        Sage populates both the **Setup tab** (teams, environments) and
         the **Design Matrix tab** (permission checkboxes) automatically.
     """,
 
@@ -1746,7 +1748,7 @@ ROLE_DESIGNER_AI_GUIDE = {
     """,
 
     "how_apply_works": """
-        When you click **Apply to Matrix**, the AI's recommendation:
+        When you click **Apply to Matrix**, Sage's recommendation:
 
         1. **Creates teams** in the Setup tab (if not already configured)
         2. **Creates environments** with critical/non-critical flags inferred from names
@@ -1755,6 +1757,8 @@ ROLE_DESIGNER_AI_GUIDE = {
         5. **Sets customer name** in the sidebar (defaults to "AI-Generated")
 
         You can then review and adjust any checkbox manually before deploying.
+
+        > Sage recommends, you decide.
     """,
 
     "tips": """
@@ -1763,31 +1767,31 @@ ROLE_DESIGNER_AI_GUIDE = {
         - **Specify which environments are critical** — "production is critical, test is not"
         - **Describe what each team does** — "QA tests flags in staging, SRE handles production incidents"
         - **Ask follow-up questions** — "add observability for Developer", "remove Archive from QA"
-        - **Use the Setup tab first** if you already know your teams/envs — the AI reads them automatically
+        - **Use the Setup tab first** if you already know your teams/envs — Sage reads them automatically
 
         **What NOT to ask:**
-        - Non-LaunchDarkly topics (AWS IAM, Okta, etc.) — the AI will politely decline
-        - Code generation or debugging help — it's an RBAC specialist only
+        - Non-LaunchDarkly topics (AWS IAM, Okta, etc.) — Sage will politely decline
+        - Code generation or debugging help — Sage is an RBAC specialist only
     """,
 
     "behind_the_scenes": """
-        The AI uses:
+        Sage uses:
         - **Gemini 2.5 Flash** — Google's fast, cost-effective LLM
         - **Embedded knowledge base** — Team archetypes, environment patterns, permission reference,
           anti-patterns curated from real PS engagements (sa-demo, Epassi, Voya, S2 template)
         - **Structured output** — Every recommendation includes a JSON block that the app parses
-        - **Scope guardrails** — The AI only answers LaunchDarkly-related questions
+        - **Scope guardrails** — Sage only answers LaunchDarkly-related questions
 
         The API key is managed by the app admin — SAs don't need their own key.
     """,
 
     "limitations": """
-        - **No deployment** — The AI recommends permissions but doesn't deploy them.
+        - **No deployment** — Sage recommends permissions but doesn't deploy them.
           Use the Deploy tab for that.
-        - **No real-time LD data** — The AI doesn't connect to your LaunchDarkly account.
+        - **No real-time LD data** — Sage doesn't connect to your LaunchDarkly account.
           It works from the knowledge base + your descriptions.
         - **Recommendations are starting points** — Always review and adjust the matrix
-          before deploying. The AI defaults to least privilege.
+          before deploying. Sage defaults to least privilege.
         - **One conversation per session** — Refreshing the page clears chat history.
           Use Apply to Matrix before refreshing.
     """,
@@ -1798,8 +1802,8 @@ ROLE_DESIGNER_AI_GUIDE = {
 
 ```python
 def _render_role_designer_ai_guide() -> None:
-    """Render Role Designer AI guide section."""
-    with st.expander("🤖 Role Designer AI Guide", expanded=False):
+    """Render Sage (Role Designer AI) guide section."""
+    with st.expander("🤖 Sage (Role Designer AI) Guide", expanded=False):
         st.markdown("### What It Does")
         st.markdown(ROLE_DESIGNER_AI_GUIDE["what_it_does"])
 
@@ -1853,21 +1857,21 @@ def render_reference_tab() -> None:
 
 | File | Change | Lines |
 |------|--------|-------|
-| `ui/reference_tab.py` | Add `ROLE_DESIGNER_AI_GUIDE` constant + `_render_role_designer_ai_guide()` + call in `render_reference_tab()` | ~80 |
+| `ui/reference_tab.py` | Add `ROLE_DESIGNER_AI_GUIDE` constant (mentions Sage by name) + `_render_role_designer_ai_guide()` + call in `render_reference_tab()` | ~80 |
 
 ### Pseudo Logic
 
 ```
 FUNCTION _render_role_designer_ai_guide():
 
-  WITH st.expander("🤖 Role Designer AI Guide", expanded=False):
+  WITH st.expander("🤖 Sage (Role Designer AI) Guide", expanded=False):
 
     RENDER "What It Does"
-      - Chat-powered RBAC assistant
+      - Sage: Chat-powered RBAC assistant
       - Capabilities list (recommend, explain, flag anti-patterns, follow-ups, JSON output)
 
     RENDER "Quick Start"
-      - 3 steps: go to Tab 4 → pick starter or type → click Apply
+      - 3 steps: go to Sage tab → pick starter or type → click Apply
 
     RENDER "Starter Prompts"
       - Table of 6 prompts with "Best For" descriptions
@@ -1893,7 +1897,7 @@ FUNCTION _render_role_designer_ai_guide():
 GIVEN: render_reference_tab() is called
 WHEN:  the page renders
 THEN:  no exceptions raised
-       "Role Designer AI Guide" text appears in the output
+       "Sage (Role Designer AI) Guide" text appears in the output
 ```
 
 #### TC-REF-AI-02: All 7 subsections present

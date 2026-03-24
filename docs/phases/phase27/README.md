@@ -1,11 +1,11 @@
-# Phase 27: RBAC Advisor — AI-Powered Role Recommendations
+# Phase 27: Sage — Role Designer AI (AI-Powered Role Recommendations)
 
 | Field | Value |
 |-------|-------|
 | **Phase** | 27 |
 | **Status** | ✅ Implemented |
 | **Priority** | 🔴 High |
-| **Goal** | Add an AI chat tab where SAs describe their customer's team structure and get RBAC best-practice recommendations before building the matrix |
+| **Goal** | Add Sage — an AI chat tab where SAs describe their customer's team structure and get RBAC best-practice recommendations before building the matrix |
 | **Depends on** | Phase 15 (Tabbed Permission Groups — for structured output), Phase 5 (UI module pattern) |
 
 ---
@@ -18,14 +18,16 @@ Today, the SA needs to already know LaunchDarkly RBAC best practices, the princi
 
 ## The Solution
 
-A new **Tab 4: Role Designer AI** where the SA has a chat conversation with an AI that:
+A new **Tab 4: Sage (Role Designer AI)** where the SA has a chat conversation with Sage that:
 
 1. **Understands** the customer's team structure, environments, and goals
 2. **Recommends** a concrete permission matrix based on LD RBAC best practices
 3. **Explains** the reasoning behind each recommendation
 4. **Outputs** a structured suggestion the SA can review and apply to the matrix
 
-The SA goes from *"I think dev should have targeting in test?"* to *"The AI recommends this, here's why, and I can apply it with one click."*
+The SA goes from *"I think dev should have targeting in test?"* to *"Sage recommends this, here's why, and I can apply it with one click."*
+
+> *Ask Vega about your flags, ask Sage about your roles.*
 
 ---
 
@@ -33,7 +35,7 @@ The SA goes from *"I think dev should have targeting in test?"* to *"The AI reco
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  🤖 RBAC Advisor                                                      │
+│  🤖 Sage — Role Designer AI                                             │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                       │
 │  ┌─ Context Panel (sidebar/expander) ─────────────────────────────┐  │
@@ -106,7 +108,7 @@ The AI returns both:
 
 | Approach | Verdict | Reason |
 |----------|---------|--------|
-| `st.session_state.advisor_messages` | ✅ | Simple, matches Streamlit chat pattern |
+| `st.session_state.advisor_messages` | ✅ | Simple, matches Streamlit chat pattern (Sage's conversation) |
 | External DB | ❌ | Overkill for session-scoped conversations |
 
 ---
@@ -116,7 +118,7 @@ The AI returns both:
 | Document | Description |
 |----------|-------------|
 | [DESIGN.md](./DESIGN.md) | HLD, DLD, pseudo logic, 20 test cases, implementation plan |
-| [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) | **Master system prompt** with guardrails, token budget, cost analysis, API key management |
+| [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md) | **Master system prompt** for Sage with guardrails, token budget, cost analysis, API key management |
 | [FEW_SHOT_EXAMPLES.md](./FEW_SHOT_EXAMPLES.md) | **6 grounded examples** from real customer data (sa-demo, Epassi, Voya, S2 template) — simple to complex |
 | [PYTHON_CONCEPTS.md](./PYTHON_CONCEPTS.md) | Python concepts: API clients, streaming, system prompts, JSON parsing, Streamlit chat components |
 
@@ -126,9 +128,9 @@ The AI returns both:
 
 | File | Action |
 |------|--------|
-| `services/ai_advisor.py` | CREATED — `RBACAdvisor` class (Gemini client via `google.genai`, system prompt, structured output) |
-| `core/rbac_knowledge.py` | CREATED — Embedded RBAC best practices knowledge base |
-| `ui/advisor_tab.py` | CREATED — Tab 4 "Role Designer AI" chat UI with context panel, versioned widget keys, thinking indicator, collapsible JSON |
+| `services/ai_advisor.py` | CREATED — `RBACAdvisor` class powering Sage (Gemini client via `google.genai`, system prompt, structured output) |
+| `core/rbac_knowledge.py` | CREATED — Embedded RBAC best practices knowledge base (Sage's brain) |
+| `ui/advisor_tab.py` | CREATED — Tab 4 "Sage (Role Designer AI)" chat UI with context panel, versioned widget keys, thinking indicator, collapsible JSON |
 | `ui/__init__.py` | UPDATED — Added `render_advisor_tab` export |
 | `app.py` | UPDATED — Added Tab 4 |
 | `.streamlit/secrets.toml` | ADD `GEMINI_API_KEY` (not committed to git) |
@@ -145,7 +147,7 @@ The AI returns both:
 - [x] `services/ai_advisor.py` created — Gemini integration via `google.genai` SDK + structured output
 - [x] `ui/advisor_tab.py` created — chat UI + context panel + apply button + versioned widget keys + thinking indicator + collapsible JSON
 - [x] `ui/__init__.py` updated
-- [x] `app.py` updated — Tab 4 "Role Designer AI"
+- [x] `app.py` updated — Tab 4 "Sage (Role Designer AI)"
 - [x] `requirements.txt` updated — `google-genai>=1.0.0`
 - [x] `tests/test_ai_advisor.py` created — all 20 tests passing
 - [x] Manual test: full conversation → apply to matrix → verify matrix populated
@@ -156,7 +158,7 @@ The AI returns both:
 
 ### Streamlit Widget Caching (Biggest Challenge)
 
-Streamlit caches widget values by key. When the Advisor's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), Streamlit's checkbox widgets in the Matrix tab still hold their old `False` values from the previous render. The DataFrame data is correct, but the widgets override it on the next rerun.
+Streamlit caches widget values by key. When Sage's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), Streamlit's checkbox widgets in the Matrix tab still hold their old `False` values from the previous render. The DataFrame data is correct, but the widgets override it on the next rerun.
 
 **Fix: Version-based widget keys.** Each time Apply runs, a version counter increments in `session_state`. Widget keys include this version (e.g., `key_prefix=f"proj_v{version}_{group}"`), forcing Streamlit to create fresh widgets that read from the updated DataFrame instead of using cached values.
 
@@ -164,7 +166,7 @@ The same issue affected `st.data_editor` widgets for teams and `env_groups` in t
 
 ### env_groups Stale Data
 
-The Setup tab's `data_editor` restores old default `env_groups` (e.g., Test, Production) even after the Advisor writes 4 environments. Fix: The Matrix tab reads environment keys directly from `env_matrix` when the `_advisor_applied` flag is `True`, bypassing the stale `env_groups` data.
+The Setup tab's `data_editor` restores old default `env_groups` (e.g., Test, Production) even after Sage writes 4 environments. Fix: The Matrix tab reads environment keys directly from `env_matrix` when the `_advisor_applied` flag is `True`, bypassing the stale `env_groups` data.
 
 ### st.secrets Crash on Missing secrets.toml
 
@@ -176,4 +178,4 @@ The first Gemini call with a large system prompt can timeout. Fix: set `http_opt
 
 ### Two-Phase Apply with _advisor_applied Flag
 
-The Matrix tab checks the `_advisor_applied` flag to skip its normal stale-data sync logic and trust the Advisor's data directly. The success banner persists across `st.rerun()` via a session_state flag.
+The Matrix tab checks the `_advisor_applied` flag to skip its normal stale-data sync logic and trust Sage's data directly. The success banner persists across `st.rerun()` via a session_state flag.

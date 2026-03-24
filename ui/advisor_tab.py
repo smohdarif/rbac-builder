@@ -2,7 +2,7 @@
 Advisor Tab — AI-Powered RBAC Recommendations
 ================================================
 
-This module renders Tab 4: RBAC Advisor.
+This module renders Tab 4: Sage (Role Designer AI).
 
 Responsibilities:
 - Chat interface with Gemini-powered AI
@@ -461,12 +461,12 @@ def _apply_recommendation(recommendation: dict, context: dict) -> bool:
 
 def render_advisor_tab(customer_name: str = "") -> None:
     """
-    Main entry point for Tab 4: RBAC Advisor.
+    Main entry point for Tab 4: Sage (Role Designer AI).
     Called from app.py.
     """
     _initialize_session_state()
 
-    st.header("🤖 Role Designer AI")
+    st.header("🤖 Sage — Role Designer AI")
     st.markdown(
         "Describe your teams and access needs — get an instant RBAC blueprint powered by AI."
     )
@@ -476,7 +476,7 @@ def render_advisor_tab(customer_name: str = "") -> None:
 
     if not api_key:
         st.info(
-            "RBAC Advisor requires configuration. "
+            "Sage requires configuration. "
             "Set the `GEMINI_API_KEY` environment variable or add it to "
             "`.streamlit/secrets.toml`."
         )

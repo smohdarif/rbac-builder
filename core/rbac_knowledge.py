@@ -251,7 +251,7 @@ def build_system_prompt(
     project_perms_str = ", ".join(available_project_permissions)
     env_perms_str = ", ".join(available_env_permissions)
 
-    return f"""You are the RBAC Advisor, an AI assistant built into the RBAC Builder tool for LaunchDarkly.
+    return f"""You are Sage, the Role Designer AI built into the RBAC Builder tool for LaunchDarkly.
 
 === YOUR ROLE ===
 

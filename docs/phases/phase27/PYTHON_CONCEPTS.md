@@ -1,6 +1,6 @@
 # Phase 27: Python Concepts
 
-Concepts introduced when building an AI-powered chat advisor with Gemini integration.
+Concepts introduced when building Sage — the Role Designer AI — with Gemini integration.
 
 ---
 
@@ -60,7 +60,7 @@ for num in count_up_to(3):
     print(num)         # 1, 2, 3
 ```
 
-### In our AI advisor
+### In Sage (our AI advisor)
 
 ```python
 def stream_recommendation(self, user_message: str) -> Generator[str, None, None]:
@@ -200,7 +200,7 @@ response = chat.send_message("What should my dev team get?")
 
 ### Structured output technique
 
-The key challenge: we need the AI to return both **readable explanation** (for the SA) and **parseable JSON** (for the Apply button). The trick: instruct it to include a JSON block at the end.
+The key challenge: we need Sage to return both **readable explanation** (for the SA) and **parseable JSON** (for the Apply button). The trick: instruct it to include a JSON block at the end.
 
 ```python
 system_prompt = """
@@ -462,7 +462,7 @@ except ValueError as e:
 
 ### The problem
 
-This was the biggest challenge in Phase 27. Streamlit caches widget values by their `key`. When the Advisor's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), the checkbox widgets in the Matrix tab still hold their old `False` values from a previous render.
+This was the biggest challenge in Phase 27. Streamlit caches widget values by their `key`. When Sage's Apply button writes `True` values into DataFrames (`project_matrix`, `env_matrix`), the checkbox widgets in the Matrix tab still hold their old `False` values from a previous render.
 
 ```python
 # BAD — widget key is static. Streamlit returns the CACHED value (False),
@@ -606,7 +606,7 @@ If the JS fails (DOM changes, browser blocks), nothing breaks — the success ba
 
 ### The concept
 
-AI responses include both readable explanation and a large JSON block. Showing the raw JSON inline is overwhelming. `st.expander` collapses it into a toggleable section:
+Sage's responses include both readable explanation and a large JSON block. Showing the raw JSON inline is overwhelming. `st.expander` collapses it into a toggleable section:
 
 ```python
 # Before: JSON clutters the chat
@@ -687,10 +687,10 @@ for msg in messages:
 
 ### The concept
 
-Streamlit reruns ALL tabs on every interaction. When the Advisor (Tab 4) writes data that the Matrix tab (Tab 2) needs to read differently, we use session_state flags to coordinate:
+Streamlit reruns ALL tabs on every interaction. When Sage (Tab 4) writes data that the Matrix tab (Tab 2) needs to read differently, we use session_state flags to coordinate:
 
 ```python
-# Tab 4 (Advisor) — sets flags during Apply
+# Tab 4 (Sage) — sets flags during Apply
 st.session_state["_advisor_applied"] = True       # Matrix tab: skip stale sync
 st.session_state["_advisor_show_success"] = True   # Advisor tab: show banner + navigate
 st.session_state["_matrix_version"] = version + 1  # All tabs: fresh widget keys
@@ -698,7 +698,7 @@ st.session_state["_advisor_customer_name"] = name   # Sidebar: pre-fill customer
 
 # Tab 2 (Matrix) — reads the flag
 if st.session_state.get("_advisor_applied"):
-    # Trust the Advisor's data, don't sync from Setup
+    # Trust Sage's data, don't sync from Setup
     env_keys = env_matrix["Environment"].unique().tolist()
 ```
 
@@ -714,8 +714,8 @@ Apply clicked (Tab 4)
 Rerun starts:
   Tab 1 (Setup):  reads _matrix_version → versioned data_editor keys
   Tab 2 (Matrix): reads _advisor_applied → skips stale sync, trusts data
-  Tab 4 (Advisor): reads _advisor_show_success → shows banner + JS navigate
-                   sets _advisor_show_success = False (consumed)
+  Tab 4 (Sage):    reads _advisor_show_success → shows banner + JS navigate
+                      sets _advisor_show_success = False (consumed)
 ```
 
 ### Naming convention
@@ -814,7 +814,7 @@ components.html("<script>window.parent.document...</script>", height=0)
 
 # === Session state flags (cross-tab coordination) ===
 st.session_state["_advisor_applied"] = True       # matrix: skip sync
-st.session_state["_advisor_show_success"] = True   # advisor: navigate
+st.session_state["_advisor_show_success"] = True   # Sage tab: navigate
 st.session_state["_matrix_version"] += 1           # all: fresh widgets
 # Always consume flags after use:
 st.session_state["_advisor_show_success"] = False

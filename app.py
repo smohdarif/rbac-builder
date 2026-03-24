@@ -124,7 +124,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 1. Setup",
     "📊 2. Design Matrix",
     "🚀 3. Deploy",
-    "🤖 4. Role Designer AI",
+    "🤖 4. Sage (Role Designer AI)",
     "📚 5. Reference Guide",
 ])
 
@@ -147,7 +147,7 @@ with tab3:
     render_deploy_tab(customer_name=customer_name, mode=mode)
 
 # =============================================================================
-# TAB 4: Role Designer AI
+# TAB 4: Sage (Role Designer AI)
 # =============================================================================
 with tab4:
     render_advisor_tab(customer_name=customer_name)
