@@ -414,7 +414,12 @@ def _render_project_summary() -> None:
         st.info("No permissions configured yet.")
         return
 
-    display = st.session_state.project_matrix.replace({True: "✅", False: "—"})
+    # Use map instead of replace — replace({True: ..., False: ...}) crashes
+    # on pandas with Python 3.14 due to an internal indexing bug.
+    display = st.session_state.project_matrix.copy()
+    bool_cols = display.select_dtypes(include=["bool"]).columns
+    for col in bool_cols:
+        display[col] = display[col].map({True: "✅", False: "—"})
     st.dataframe(display, use_container_width=True, hide_index=True)
 
 
@@ -501,7 +506,10 @@ def _render_env_summary() -> None:
         st.info("No permissions configured yet.")
         return
 
-    display = st.session_state.env_matrix.replace({True: "✅", False: "—"})
+    display = st.session_state.env_matrix.copy()
+    bool_cols = display.select_dtypes(include=["bool"]).columns
+    for col in bool_cols:
+        display[col] = display[col].map({True: "✅", False: "—"})
     st.dataframe(display, use_container_width=True, hide_index=True)
 
 
