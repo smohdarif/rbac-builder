@@ -298,56 +298,98 @@ st.checkbox("My checkbox", key="my_unique_key_123")
 
 ---
 
-## 6. DataFrame.replace() — Display Formatting
+## 6. Boolean Display Formatting — `map()` vs `replace()`
 
-### The concept
+### The goal
 
-`DataFrame.replace()` swaps values in a DataFrame. We use it to convert `True`/`False` to more readable symbols for the Summary tab.
+Convert `True`/`False` in DataFrames to readable symbols (`✅`/`—`) for the Summary tab.
+
+### The original approach: `DataFrame.replace()`
+
+```python
+# This was our first approach — worked fine initially
+display_df = df.replace({True: "✅", False: "—"})
+```
+
+**What went wrong:** On Python 3.14 + newer pandas versions (Streamlit Cloud auto-updates),
+`df.replace({True: ..., False: ...})` crashes with an `IndexError` deep inside pandas'
+internal memory management (`replace_list` → `referenced_blocks.pop()`).
+
+This is a **pandas bug**, not our bug — but we had to work around it.
+
+### The fix: `Series.map()` column by column
+
+```python
+# GOOD — map() works on one column at a time, avoids the pandas bug
+display = df.copy()
+bool_cols = display.select_dtypes(include=["bool"]).columns
+for col in bool_cols:
+    display[col] = display[col].map({True: "✅", False: "—"})
+st.dataframe(display, use_container_width=True, hide_index=True)
+```
+
+### Think of it like painting
+
+- `replace()` = "repaint the entire house at once" (complex, can break)
+- `map()` = "repaint one wall at a time" (simple, reliable)
+
+Both produce the same result. `map()` is safer across Python/pandas versions.
+
+### How `map()` works
 
 ```python
 import pandas as pd
 
+s = pd.Series([True, False, True, False])
+
+# map() applies a mapping to each element in the Series
+s.map({True: "✅", False: "—"})
+# → ["✅", "—", "✅", "—"]
+
+# map() can also take a function
+s.map(lambda x: "YES" if x else "NO")
+# → ["YES", "NO", "YES", "NO"]
+```
+
+### How `select_dtypes()` works
+
+```python
 df = pd.DataFrame({
-    "Team":         ["Developer", "QA"],
-    "Create Flags": [True,        False],
-    "Update Flags": [True,        True],
+    "Team":         ["Dev", "QA"],       # string column
+    "Create Flags": [True, False],       # bool column
+    "Update Flags": [True, True],        # bool column
 })
 
-# Replace booleans with display symbols
-display_df = df.replace({True: "✅", False: "—"})
-
-print(display_df)
-#          Team  Create Flags  Update Flags
-# 0  Developer            ✅            ✅
-# 1         QA             —            ✅
+# Get ONLY the boolean columns
+bool_cols = df.select_dtypes(include=["bool"]).columns
+# → Index(["Create Flags", "Update Flags"])
+# "Team" is excluded because it's a string, not a bool
 ```
 
 ### Why not modify the original DataFrame?
 
-`.replace()` returns a **new** DataFrame — it doesn't modify the original. This is important because the original `project_matrix` must keep True/False values for the payload builder to work.
+Always work on a **copy**. The original `project_matrix` must keep `True`/`False` for
+the payload builder. If we replaced values in-place, the builder would get `"✅"` instead
+of `True` and break.
 
 ```python
-# GOOD — display_df is a copy with symbols, original df unchanged
-display_df = df.replace({True: "✅", False: "—"})
-st.dataframe(display_df)
+# GOOD — copy first, then format the copy
+display = df.copy()
+for col in bool_cols:
+    display[col] = display[col].map({True: "✅", False: "—"})
 
-# BAD — this would corrupt the original data!
-df.replace({True: "✅", False: "—"}, inplace=True)
-# Now payload builder gets "✅" instead of True → broken
+# BAD — modifying the original corrupts the data
+for col in bool_cols:
+    df[col] = df[col].map({True: "✅", False: "—"})
+# Now df has strings instead of booleans → payload builder breaks
 ```
 
-### `.copy()` vs `.replace()`
+### Lesson learned: Deployment environments change
 
-```python
-# .copy() makes a shallow copy (same data)
-df2 = df.copy()
-
-# .replace() makes a copy AND transforms values
-df2 = df.replace({True: "✅"})
-
-# For our use case, .replace() alone is enough
-# (it already creates a new object, no need for .copy() first)
-```
+Streamlit Cloud auto-updates Python and packages. Code that works locally
+(Python 3.13, pandas 2.1) can break on Cloud (Python 3.14, pandas 2.3) without
+you changing anything. **Avoid patterns known to be fragile** — `DataFrame.replace()`
+with boolean keys is one of them.
 
 ---
 
@@ -375,8 +417,10 @@ my_list[1:]     # all except first
 # Unique widget keys across tabs
 key = f"proj_{group_key}_{team_idx}_{perm_idx}"
 
-# DataFrame.replace() for display (non-destructive)
-display_df = df.replace({True: "✅", False: "—"})
+# Boolean display formatting (use map, NOT replace — replace crashes on Python 3.14)
+display = df.copy()
+for col in display.select_dtypes(include=["bool"]).columns:
+    display[col] = display[col].map({True: "✅", False: "—"})
 # original df is unchanged
 ```
 
