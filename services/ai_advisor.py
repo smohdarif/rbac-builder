@@ -21,9 +21,6 @@ import json
 import re
 from typing import Generator, Optional, List, Dict
 
-from google import genai
-from google.genai import types
-
 from core.rbac_knowledge import build_system_prompt
 from core.ld_actions import (
     get_all_project_permissions,
@@ -72,6 +69,21 @@ class RBACAdvisor:
             raise AdvisorError("Gemini API key is required")
 
         # =============================================================
+        # LESSON: Lazy Import — only load google-genai when actually used
+        # =============================================================
+        # We import here instead of at the top of the file so that the
+        # rest of the app can start even if google-genai isn't installed.
+        # This prevents the entire app from crashing on Streamlit Cloud
+        # if the dependency fails to install.
+        try:
+            from google import genai
+        except ImportError:
+            raise AdvisorError(
+                "google-genai package is not installed. "
+                "Run: pip install google-genai"
+            )
+
+        # =============================================================
         # LESSON: New google.genai Client
         # =============================================================
         # The new SDK uses a Client object instead of genai.configure().
@@ -108,6 +120,8 @@ class RBACAdvisor:
         # =============================================================
         # The new SDK uses client.chats.create() with a config object.
         # system_instruction sets the AI's persona (sent once).
+        from google.genai import types
+
         self.chat = self.client.chats.create(
             model=self.MODEL_NAME,
             config=types.GenerateContentConfig(
