@@ -22,7 +22,7 @@ import pandas as pd
 import json
 from typing import Optional, Dict, Any, Callable
 
-from models import RBACConfig, Team, EnvironmentGroup
+from models import RBACConfig
 
 
 # =============================================================================
@@ -40,56 +40,33 @@ ProgressCallback = Callable[['DeployStepResult', int, int], None]
 
 def build_config_from_session() -> RBACConfig:
     """
-    Build an RBACConfig object from current session state.
+    Build a COMPLETE RBACConfig from current session state — including the project and
+    environment permission matrices.
+
+    Phase 28 fix: this previously returned teams + env_groups ONLY, so the 💾 Save
+    Configuration button persisted configs with ZERO permissions. It now reuses the same
+    path as the Download button — snapshot the session (Schema B) and normalise via the
+    importer — so Save and Download produce identical, complete Schema A configs.
 
     Returns:
-        RBACConfig object populated from session state
+        RBACConfig populated from session state (teams, env groups, and BOTH matrices)
     """
-    # Convert teams DataFrame to Team objects
-    teams = []
-    if "teams" in st.session_state:
-        for row in st.session_state.teams.to_dict(orient="records"):
-            key = row.get("Key", row.get("key", ""))
-            if key:  # Skip empty rows
-                teams.append(Team(
-                    key=key,
-                    name=row.get("Name", row.get("name", "")),
-                    description=row.get("Description", row.get("description", ""))
-                ))
+    # Local import mirrors _build_config_dict and avoids import-order coupling.
+    from services.config_importer import normalize_config
 
-    # Convert env_groups DataFrame to EnvironmentGroup objects
-    env_groups = []
-    if "env_groups" in st.session_state:
-        for row in st.session_state.env_groups.to_dict(orient="records"):
-            key = row.get("Key", row.get("key", ""))
-            if key:  # Skip empty rows
-                env_groups.append(EnvironmentGroup(
-                    key=key,
-                    requires_approval=row.get("Requires Approvals", row.get("requires_approval", False)),
-                    is_critical=row.get("Critical", row.get("is_critical", False)),
-                    notes=row.get("Notes", row.get("notes", ""))
-                ))
-
-    # Build and return config
-    return RBACConfig(
-        customer_name=st.session_state.get("_customer_name", ""),
-        project_key=st.session_state.get("project", "default"),
-        mode=st.session_state.get("_mode", "Manual"),
-        teams=teams,
-        env_groups=env_groups
-    )
+    customer_name = st.session_state.get("_customer_name", "")
+    mode = st.session_state.get("_mode", "Manual")
+    snapshot = _build_session_snapshot(customer_name, mode)
+    return normalize_config(snapshot).to_rbac_config()
 
 
-def _build_config_dict(customer_name: str, mode: str) -> Dict[str, Any]:
+def _build_session_snapshot(customer_name: str, mode: str) -> Dict[str, Any]:
     """
-    Build configuration dictionary for JSON export.
+    Snapshot the raw session_state DataFrames (the "display" shape, Schema B).
 
-    Args:
-        customer_name: Customer name
-        mode: Mode (Manual/Connected)
-
-    Returns:
-        Dictionary ready for JSON serialization
+    This is an INTERNAL, UI-shaped view. It is NOT the download format — it is fed into
+    the config importer, which resolves it into the canonical Schema A. Kept as a helper
+    because it's also the natural fallback if normalisation can't run (incomplete config).
     """
     return {
         "version": "1.0",
@@ -99,8 +76,39 @@ def _build_config_dict(customer_name: str, mode: str) -> Dict[str, Any]:
         "teams": st.session_state.teams.to_dict(orient="records") if "teams" in st.session_state else [],
         "env_groups": st.session_state.env_groups.to_dict(orient="records") if "env_groups" in st.session_state else [],
         "project_permissions": st.session_state.project_matrix.to_dict(orient="records") if "project_matrix" in st.session_state else [],
-        "env_permissions": st.session_state.env_matrix.to_dict(orient="records") if "env_matrix" in st.session_state else []
+        "env_permissions": st.session_state.env_matrix.to_dict(orient="records") if "env_matrix" in st.session_state else [],
     }
+
+
+def _build_config_dict(customer_name: str, mode: str) -> Dict[str, Any]:
+    """
+    Build the configuration dictionary for JSON export — the DOWNLOAD format.
+
+    Phase 28 unification: the download now emits the canonical **Schema A**
+    (RBACConfig.to_dict — snake_case, team-by-key), the SAME schema the Save button
+    writes. We get there by snapshotting the session (Schema B) and running it through
+    the importer, which resolves team-name→key and coalesces defaults.
+
+    If the config is incomplete/invalid (e.g. no teams yet, empty customer name), we fall
+    back to the raw session snapshot so the download never hard-fails on a draft.
+
+    Args:
+        customer_name: Customer name
+        mode: Mode (Manual/Connected)
+
+    Returns:
+        Dictionary ready for JSON serialization (Schema A when possible)
+    """
+    snapshot = _build_session_snapshot(customer_name, mode)
+    try:
+        # Local import avoids any import-order coupling at module load.
+        from services.config_importer import normalize_config
+
+        normalized = normalize_config(snapshot)
+        return normalized.to_rbac_config().to_dict()
+    except Exception:
+        # Draft/incomplete config — emit the raw snapshot rather than blocking download.
+        return snapshot
 
 
 # =============================================================================

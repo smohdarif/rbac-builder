@@ -117,6 +117,76 @@ The downloaded JSON follows the `RBACConfig.to_dict()` format:
 }
 ```
 
+### 1b. Schema Compatibility — TWO on-disk formats (added 2026-07-23)
+
+> **Revision driver:** the iSeatz "Upload Config" request. The real downloaded file
+> exposed that the app persists configs in **two different schemas**. See
+> [REQUIREMENT-iseatz-upload.md](./REQUIREMENT-iseatz-upload.md).
+
+The JSON shown in §1 above is **Schema A** (`RBACConfig.to_dict()`, used by the Storage
+service — e.g. `configs/customers/voya/config.json`). But the **Download** button in
+`ui/deploy_tab.py` (`_build_config_dict`, lines 94–103) emits a **different** shape,
+**Schema B**, by serialising the raw session_state DataFrames:
+
+```python
+"teams":               st.session_state.teams.to_dict(orient="records"),        # → "Key","Name","Description"
+"env_groups":          st.session_state.env_groups.to_dict(orient="records"),   # → "Key","Requires Approvals","Critical","Notes"
+"project_permissions": st.session_state.project_matrix.to_dict(orient="records"),# → "Team"(name),"Create Flags",...
+"env_permissions":     st.session_state.env_matrix.to_dict(orient="records"),   # → "Team"(name),"Environment",...
+```
+
+| | Schema A — storage | Schema B — download (iSeatz has this) |
+|---|---|---|
+| Team | `{"key","name","description"}` | `{"Key","Name","Description"}` |
+| Env group | `{"key","requires_approval","is_critical","notes"}` | `{"Key","Requires Approvals","Critical","Notes"}` |
+| Project perm | `{"team_key","create_flags",...}` | `{"Team":<name>,"Create Flags",...}` |
+| Env perm | `{"team_key","environment_key",...}` | `{"Team":<name>,"Environment":<key>,...}` |
+| Casing | `snake_case` | `Title Case` |
+| Team ref | by **key** | by **display name** |
+
+**The original §3/§4 parse/restore code only handles Schema A** → it raises
+`ConfigUploadError("Team missing 'key' or 'name'")` (schema B teams use `"Key"`/`"Name"`)
+and, past that, `KeyError` on `t["key"]` / `pp["team_key"]` / `pp["create_flags"]`.
+
+**Design decision:** move normalisation into a dedicated, testable service and have the
+UI depend on the canonical `RBACConfig` only.
+
+```
+services/config_importer.py
+
+  def normalize_config(raw: dict) -> RBACConfig:
+      """Accept Schema A or Schema B and return a canonical RBACConfig."""
+      schema = _detect_schema(raw)          # inspect keys: "key" vs "Key", "team_key" vs "Team"
+      if schema == "A":
+          return RBACConfig.from_dict(raw)  # existing path
+      return _from_display_schema(raw)      # Schema B → canonical
+
+  def _detect_schema(raw) -> str:
+      teams = raw.get("teams") or []
+      if teams and "Key" in teams[0]:
+          return "B"
+      return "A"
+
+  def _from_display_schema(raw) -> RBACConfig:
+      # 1. Build name→key map from teams[].{Name,Key}
+      # 2. Teams:      Key/Name/Description  (Description null → "")
+      # 3. Env groups: Requires Approvals/Critical null → False; Notes null → ""
+      # 4. Project perms: resolve "Team"(name) → team_key; map "Create Flags"→create_flags, ...
+      # 5. Env perms:     resolve "Team"(name) → team_key; keep "Environment" as environment_key
+      # 6. Return RBACConfig(...)  (reuse the same UI-label → field maps as §4)
+```
+
+The Phase 28 UI (`_parse_uploaded_config`) then becomes: validate top-level keys →
+`config_importer.normalize_config(raw)` → hydrate session_state from the `RBACConfig`.
+
+**Round-trip contract (as built — unified):** `ProjectPermission` was extended with the
+observability columns + `manage_ai_variations`, closing the model gap. With the models now
+lossless, the **Download button emits canonical Schema A** (`RBACConfig.to_dict()`) — the
+same schema Save writes. There is one write format. The importer still returns a
+schema-agnostic **`NormalizedConfig`** (keyed by UI label) so it can read *both* Schema A and
+legacy Schema B files already downloaded in the field; `.to_rbac_config()` is the (now
+lossless) bridge the download path serialises through.
+
 ### 2. File Uploader Section
 
 ```python
@@ -538,20 +608,69 @@ THEN:  4 teams (dev, qa, po, release-manager)
        All permission values match the template
 ```
 
+### Group 4: Schema Compatibility (added 2026-07-23 — iSeatz request)
+
+**Fixture:** `configs/customers/iseatz/2026.05.12iseatz_rbac_config.json` (Schema B).
+
+#### TC-UP-15: Schema detection picks B for Title-Case teams
+```
+GIVEN: A config whose teams[0] has key "Key" (not "key")
+WHEN:  config_importer._detect_schema(raw) is called
+THEN:  Returns "B"
+       (A snake_case config returns "A")
+```
+
+#### TC-UP-16: Schema-B download normalises to canonical RBACConfig
+```
+GIVEN: The iSeatz Schema-B file
+WHEN:  config_importer.normalize_config(raw) is called
+THEN:  Returns an RBACConfig with customer_name "iSeatz", project_key "amex",
+       6 teams, 10 env_groups, 6 project_permissions, 60 env_permissions
+       No exception raised
+```
+
+#### TC-UP-17: Team name resolved to key in permissions
+```
+GIVEN: iSeatz project_permissions row with "Team": "Developer"
+WHEN:  normalize_config(raw) is called
+THEN:  The resulting ProjectPermission.team_key == "dev"
+       (resolved via teams[].Name → teams[].Key)
+```
+
+#### TC-UP-18: Null env-group flags coalesce to False
+```
+GIVEN: iSeatz env_groups "qa"/"int"/"pt" with "Requires Approvals": null, "Critical": null
+WHEN:  normalize_config(raw) is called
+THEN:  Those EnvironmentGroup objects have requires_approval == False, is_critical == False
+       (and null Notes → "", null team Description → "")
+```
+
+#### TC-UP-19: End-to-end restore of the iSeatz file populates all tabs
+```
+GIVEN: The iSeatz Schema-B file uploaded via the Setup tab
+WHEN:  _restore_config_to_session runs on the normalised config
+THEN:  session_state.teams has 6 rows; env_groups has 10 rows
+       project_matrix has 6 rows; env_matrix has 60 rows
+       Administrator/production/Update Targeting == True
+       Developer/production/Update Targeting == False
+```
+
 ---
 
 ## Implementation Plan
 
 | Step | Task | File |
 |------|------|------|
-| 1 | Create `ConfigUploadError` exception | `ui/setup_tab.py` |
-| 2 | Implement `_parse_uploaded_config()` | `ui/setup_tab.py` |
-| 3 | Implement `_restore_config_to_session()` | `ui/setup_tab.py` |
-| 4 | Implement `_render_upload_section()` | `ui/setup_tab.py` |
-| 5 | Add `_render_upload_section()` call in `render_setup_tab()` | `ui/setup_tab.py` |
-| 6 | Write all 14 tests | `tests/test_config_upload.py` |
-| 7 | Run full test suite | `pytest tests/ -v` |
-| 8 | Manual test: download → refresh → upload → verify | — |
+| 1 | Create `services/config_importer.py` — `normalize_config`, `_detect_schema`, `_from_display_schema` | `services/config_importer.py` |
+| 2 | Create `ConfigUploadError` exception | `ui/setup_tab.py` |
+| 3 | Implement `_parse_uploaded_config()` — validate top-level keys, then call `normalize_config()` | `ui/setup_tab.py` |
+| 4 | Implement `_restore_config_to_session()` — hydrate from canonical `RBACConfig` | `ui/setup_tab.py` |
+| 5 | Implement `_render_upload_section()` | `ui/setup_tab.py` |
+| 6 | Add `_render_upload_section()` call in `render_setup_tab()` | `ui/setup_tab.py` |
+| 7 | Align Download to emit Schema A (round-trip contract) | `ui/deploy_tab.py` |
+| 8 | Write all 19 tests (14 original + `TC-UP-15…19` schema-B, using the iSeatz fixture) | `tests/test_config_upload.py` |
+| 9 | Run full test suite | `pytest tests/ -v` |
+| 10 | Manual test: download → refresh → upload → verify; **and** upload the iSeatz file | — |
 
 ### Python Concepts in This Phase
 
