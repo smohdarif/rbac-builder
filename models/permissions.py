@@ -92,6 +92,23 @@ class ProjectPermission:
     create_ai_configs: bool = False
     update_ai_configs: bool = False
     delete_ai_configs: bool = False
+    # AI Config variations (Phase 14). Kept next to the other AI Config fields.
+    manage_ai_variations: bool = False
+
+    # =========================================================================
+    # Observability permissions (Phase 14)
+    # =========================================================================
+    # These correspond to the Observability column group in the matrix UI.
+    # Added here (Phase 28 unification) so the model can hold EVERY project
+    # permission column — previously these lived only in the UI DataFrame,
+    # which is why the download JSON diverged from the storage schema.
+    view_sessions: bool = False
+    view_errors: bool = False
+    view_logs: bool = False
+    view_traces: bool = False
+    manage_alerts: bool = False
+    manage_observability_dashboards: bool = False
+    talk_to_vega: bool = False
 
     def __post_init__(self) -> None:
         """Validate the permission."""
@@ -118,6 +135,15 @@ class ProjectPermission:
             create_ai_configs=data.get("create_ai_configs", False),
             update_ai_configs=data.get("update_ai_configs", False),
             delete_ai_configs=data.get("delete_ai_configs", False),
+            manage_ai_variations=data.get("manage_ai_variations", False),
+            # Observability (Phase 14) — default False keeps old configs loadable
+            view_sessions=data.get("view_sessions", False),
+            view_errors=data.get("view_errors", False),
+            view_logs=data.get("view_logs", False),
+            view_traces=data.get("view_traces", False),
+            manage_alerts=data.get("manage_alerts", False),
+            manage_observability_dashboards=data.get("manage_observability_dashboards", False),
+            talk_to_vega=data.get("talk_to_vega", False),
         )
 
     # =========================================================================
@@ -148,7 +174,10 @@ class ProjectPermission:
             "create_flags", "update_flags", "archive_flags",
             "update_client_side_availability", "manage_metrics",
             "manage_release_pipelines", "view_project",
-            "create_ai_configs", "update_ai_configs", "delete_ai_configs"
+            "create_ai_configs", "update_ai_configs", "delete_ai_configs",
+            "manage_ai_variations",
+            "view_sessions", "view_errors", "view_logs", "view_traces",
+            "manage_alerts", "manage_observability_dashboards", "talk_to_vega",
         ]:
             if getattr(self, field_name):
                 enabled.append(field_name)

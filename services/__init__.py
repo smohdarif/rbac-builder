@@ -103,6 +103,21 @@ from .doc_generator import generate_deployment_guide
 from .package_generator import PackageGenerator, PackageGenerationError
 from .terraform_generator import TerraformGenerator, TerraformGenerationError
 
+# Config Importer (Phase 28) — normalise uploaded configs (Schema A or B)
+from .config_importer import (
+    NormalizedConfig,
+    ConfigImportError,
+    normalize_config,
+    normalize_json,
+    detect_schema,
+    build_teams_dataframe,
+    build_env_groups_dataframe,
+    build_project_matrix,
+    build_env_matrix,
+    SCHEMA_STORAGE,
+    SCHEMA_DOWNLOAD,
+)
+
 # =============================================================================
 # LESSON 41: Exporting Exceptions
 # =============================================================================
@@ -160,6 +175,18 @@ __all__ = [
     "DeployResult",
     "DeployStepResult",
     "DeployStep",
+    # Config Importer (Phase 28)
+    "NormalizedConfig",
+    "ConfigImportError",
+    "normalize_config",
+    "normalize_json",
+    "detect_schema",
+    "build_teams_dataframe",
+    "build_env_groups_dataframe",
+    "build_project_matrix",
+    "build_env_matrix",
+    "SCHEMA_STORAGE",
+    "SCHEMA_DOWNLOAD",
 ]
 
 # Package version

@@ -85,7 +85,11 @@ class EnvironmentGroup:
         # 2. Auto-fix (lenient) - what we do here
         # 3. Just warn (logging)
 
-        # Auto-fix: Critical environments should require approval
+        # Auto-fix: Critical environments should require approval.
+        # AFFIRMED DECISION (2026-07-23): keep this rule. Since Phase 28 routes the
+        # Download button through the model layer, this now also applies to downloaded
+        # configs — a Critical env with Requires Approvals blank serialises as
+        # requires_approval=True. Intentional; see docs/phases/phase28/README.md.
         if self.is_critical and not self.requires_approval:
             # Option A: Raise error
             # raise ValueError("Critical environments must require approval")

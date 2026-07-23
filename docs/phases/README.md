@@ -45,6 +45,16 @@
 
 ---
 
+## Recent Phases (26–28)
+
+| Phase | Name | Status | Description |
+|-------|------|--------|-------------|
+| **26** | [Active User Counter](./phase26/) | ✅ Complete | Session tracker (`core/session_tracker.py`) |
+| **27** | [Sage — Role Designer AI](./phase27/) | ✅ Complete | Gemini chat advisor (`ui/advisor_tab.py`) |
+| **28** | [Config Upload & Resume](./phase28/) | ✅ Complete | Upload a saved/downloaded config and resume. **Client-requested by iSeatz (2026-07-23).** Handles both config schemas via `services/config_importer.py` — see [REQUIREMENT-iseatz-upload.md](./phase28/REQUIREMENT-iseatz-upload.md) |
+
+---
+
 ## Status Legend
 
 | Icon | Meaning |
