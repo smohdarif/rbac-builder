@@ -167,7 +167,8 @@ class TestPromptBuilding:
         )
         assert "SCOPE GUARDRAILS" in result
         assert "NOT ALLOWED" in result
-        assert "RBAC Advisor" in result
+        # Assistant identity — renamed from "RBAC Advisor" to "Sage" (Phase 27)
+        assert "Sage" in result
 
     def test_system_prompt_includes_few_shot_example(
         self, sample_teams, sample_environments, sample_project_key
